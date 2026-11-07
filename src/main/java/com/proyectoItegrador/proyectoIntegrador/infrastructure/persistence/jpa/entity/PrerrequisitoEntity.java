@@ -30,4 +30,10 @@ public class PrerrequisitoEntity {
 	@JoinColumn(name = "prerrequisito_plan_asignatura_id", nullable = false)
 	private PlanAsignaturaEntity prerrequisito;
 
+	public PrerrequisitoEntity(PlanAsignaturaEntity planAsignatura, PlanAsignaturaEntity prerrequisito) {
+		this.id = new PrerrequisitoId(planAsignatura.getId(), prerrequisito.getId());
+		this.planAsignatura = planAsignatura;
+		this.prerrequisito = prerrequisito;
+	}
+
 }

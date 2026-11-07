@@ -34,4 +34,22 @@ public class OfertaAsignaturaEntity extends BaseEntity {
 	@JoinColumn(name = "docente_id")
 	private DocenteEntity docente;
 
+	public OfertaAsignaturaEntity(PlanAsignaturaEntity planAsignatura, PeriodoAcademicoEntity periodo,
+			String grupo, Integer cupo, DocenteEntity docente) {
+		this.planAsignatura = planAsignatura;
+		this.periodo = periodo;
+		this.grupo = grupo;
+		this.cupo = cupo;
+		this.docente = docente;
+	}
+
+	public void actualizar(PlanAsignaturaEntity planAsignatura, PeriodoAcademicoEntity periodo,
+			String grupo, Integer cupo, DocenteEntity docente) {
+		this.planAsignatura = planAsignatura;
+		this.periodo = periodo;
+		this.grupo = grupo;
+		this.cupo = cupo;
+		this.docente = docente;
+	}
+
 }

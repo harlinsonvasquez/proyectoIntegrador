@@ -38,4 +38,31 @@ public class EstudianteEntity extends BaseEntity {
 	@Column(name = "estado", nullable = false, length = 20)
 	private EstadoEstudiante estado;
 
+	public EstudianteEntity(UsuarioEntity usuario, ProgramaEntity programa, String codigoEstudiantil,
+			LocalDate fechaIngreso, EstadoEstudiante estado) {
+		this.usuario = usuario;
+		this.programa = programa;
+		this.codigoEstudiantil = codigoEstudiantil;
+		this.fechaIngreso = fechaIngreso;
+		this.estado = estado;
+	}
+
+	public void actualizar(ProgramaEntity programa, String codigoEstudiantil,
+			LocalDate fechaIngreso, EstadoEstudiante estado) {
+		this.programa = programa;
+		this.codigoEstudiantil = codigoEstudiantil;
+		this.fechaIngreso = fechaIngreso;
+		this.estado = estado;
+	}
+
+	public void inactivar() {
+		this.estado = EstadoEstudiante.INACTIVO;
+		this.usuario.desactivar();
+	}
+
+	public void reactivar() {
+		this.estado = EstadoEstudiante.ACTIVO;
+		this.usuario.activar();
+	}
+
 }

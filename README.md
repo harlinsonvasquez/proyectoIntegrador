@@ -40,11 +40,13 @@ el rol y el estado activo se toman de PostgreSQL. Por eso debe existir un usuari
 local con el mismo correo de Firebase y un perfil de estudiante o docente según
 corresponda.
 
-Actualmente no hay un endpoint público para registrar usuarios. La creación de
-la cuenta de autenticación se realiza en Firebase y el usuario/perfil local debe
-ser provisionado en PostgreSQL por el proceso administrativo correspondiente;
-esta API solo autentica cuentas existentes y permite actualizar los datos
-personales del estudiante autenticado.
+Las cuentas nuevas de estudiantes y docentes se crean desde el CRUD administrativo
+con Firebase Admin SDK y se enlazan con su usuario y perfil local en PostgreSQL.
+La contraseña se envía únicamente a Firebase Authentication; no se almacena en
+PostgreSQL. La cuenta queda con el correo sin verificar y el estudiante/docente
+debe completar la verificación antes de autenticarse. No hay un endpoint para
+crear administradores: el primer administrador debe aprovisionarse de forma
+segura en Firebase y PostgreSQL.
 
 La configuración predeterminada ya apunta al proyecto `base-datos-8eff6` y a su
 Realtime Database. Para iniciar con Firebase habilitado en PowerShell:
@@ -75,6 +77,15 @@ Todos requieren autenticación Firebase. Las rutas `/docente` y los reportes
 validan el rol docente o administrador; las rutas `/me` operan sobre el usuario
 autenticado.
 
+### Documentación interactiva (Swagger UI)
+
+Con la aplicación iniciada, abre `http://localhost:8080/swagger-ui/index.html`.
+El documento OpenAPI en JSON está disponible en `http://localhost:8080/v3/api-docs`.
+La interfaz y la especificación son públicas para consulta; para probar rutas
+protegidas, pulsa **Authorize** y pega el token Bearer de Firebase Authentication.
+La documentación agrupa las operaciones por responsabilidad e indica el objetivo
+de cada endpoint, sus parámetros y los esquemas de solicitud/respuesta.
+
 | Método | Ruta | Uso |
 |---|---|---|
 | `GET` | `/api/estudiantes/me` | Consultar perfil propio |
@@ -97,6 +108,60 @@ autenticado.
 | `GET` | `/api/reportes/participacion?programaId=` | Conteo por categoría de actividad integral |
 | `GET` | `/api/notificaciones` | Consultar las últimas 50 notificaciones propias (Realtime Database activo) |
 | `PATCH` | `/api/notificaciones/{id}/leida` | Marcar una notificación propia como leída |
+
+### CRUD administrativo
+
+Todas las rutas siguientes requieren un token Firebase válido y un usuario
+local activo con rol `ADMINISTRADOR`. Para crear cuentas, Firebase Admin SDK
+debe estar configurado con credenciales de servicio. `DELETE` en programas,
+planes, asignaturas, estudiantes y docentes es una baja lógica; no elimina el
+historial ni la cuenta de Firebase.
+
+| Recurso | Rutas administrativas |
+|---|---|
+| Usuarios | `GET /api/admin/usuarios` (consulta) |
+| Programas | `GET, POST /api/admin/programas`; `GET, PUT, DELETE /api/admin/programas/{id}` |
+| Planes de estudio | `GET, POST /api/admin/planes-estudio`; `GET, PUT, DELETE /api/admin/planes-estudio/{id}` |
+| Asignaturas | `GET, POST /api/admin/asignaturas`; `GET, PUT, DELETE /api/admin/asignaturas/{id}` |
+| Asignaturas del plan | `GET, POST /api/admin/plan-asignaturas`; `GET, PUT, DELETE /api/admin/plan-asignaturas/{id}` |
+| Prerrequisitos | `GET, POST /api/admin/prerrequisitos`; `GET /api/admin/prerrequisitos/{planId}/{requisitoId}`; `DELETE` en esa misma ruta |
+| Periodos | `GET, POST /api/admin/periodos`; `GET, PUT, DELETE /api/admin/periodos/{id}` |
+| Ofertas | `GET, POST /api/admin/ofertas`; `GET, PUT, DELETE /api/admin/ofertas/{id}` |
+| Estudiantes | `GET, POST /api/admin/estudiantes`; `GET, PUT, DELETE /api/admin/estudiantes/{id}` |
+| Docentes | `GET, POST /api/admin/docentes`; `GET, PUT, DELETE /api/admin/docentes/{id}` |
+| Matrículas | `GET, POST /api/admin/matriculas`; `GET, PUT /api/admin/matriculas/{id}` |
+| Actividades | `GET /api/admin/actividades?estudianteId=`; `GET, POST /api/admin/actividades`; `GET, PUT, DELETE /api/admin/actividades/{id}` |
+| Perfil sociodemográfico | `GET, PUT /api/admin/estudiantes/{id}/sociodemografico` |
+| Auditoría | `GET /api/admin/auditoria?entidad=&registroId=&usuarioId=&page=&size=` (consulta paginada) |
+
+Para registrar un estudiante, envía `POST /api/admin/estudiantes`:
+
+```json
+{
+  "correo": "estudiante@ejemplo.edu",
+  "contrasena": "UnaClaveSegura123",
+  "nombre": "Ana",
+  "apellido": "Pérez",
+  "programaId": 1,
+  "codigoEstudiantil": "EST-2025-001",
+  "fechaIngreso": "2025-01-15"
+}
+```
+
+Docente: `POST /api/admin/docentes` con `correo`, `contrasena`, `nombre`,
+`apellido` y opcionalmente `codigoDocente`. Envía las contraseñas solo por HTTPS
+y no las registres en logs ni clientes persistentes. Para modificar perfiles se
+usan `PUT /api/admin/estudiantes/{id}` y `PUT /api/admin/docentes/{id}`; estos
+datos no incluyen cambios de correo ni contraseña.
+
+No se ofrece CRUD destructivo para `rol` (catálogo fijo), `auditoria_cambio`
+(solo consulta), ni `outbox_evento` (proceso interno). Las solicitudes de
+cancelación y su seguimiento se crean y avanzan por sus endpoints de flujo,
+para conservar las reglas e historial. Las matrículas tampoco se borran desde
+el CRUD: la cancelación debe tramitarse con una solicitud, y `PUT` no permite
+reactivar una matrícula ya cancelada. El perfil sociodemográfico se consulta y
+actualiza, pero no se elimina. Las restricciones de claves foráneas impiden
+eliminar físicamente catálogos con registros dependientes.
 
 Al aprobar una cancelación, el servicio actualiza la matrícula, registra el
 seguimiento y la auditoría en la misma operación y agrega un evento a

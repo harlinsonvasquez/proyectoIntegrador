@@ -68,4 +68,15 @@ public class ActividadEstudiantilEntity extends BaseEntity {
 		this.creadaEn = OffsetDateTime.now();
 	}
 
+	public void actualizar(CategoriaActividad categoria, String nombre, String descripcion,
+			String organizacion, LocalDate fechaInicio, LocalDate fechaFin, String evidenciaUrl) {
+		this.categoria = categoria;
+		this.nombre = nombre;
+		this.descripcion = descripcion;
+		this.organizacion = organizacion;
+		this.fechaInicio = fechaInicio;
+		this.fechaFin = fechaFin;
+		this.evidenciaUrl = evidenciaUrl;
+	}
+
 }

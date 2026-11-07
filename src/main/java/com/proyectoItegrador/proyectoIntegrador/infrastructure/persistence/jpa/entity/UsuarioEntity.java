@@ -39,9 +39,29 @@ public class UsuarioEntity extends BaseEntity {
 	@Column(name = "actualizado_en", nullable = false)
 	private OffsetDateTime actualizadoEn;
 
+	public UsuarioEntity(RolEntity rol, String correo, String nombre, String apellido) {
+		this.rol = rol;
+		this.correo = correo;
+		this.nombre = nombre;
+		this.apellido = apellido;
+		this.activo = true;
+		this.creadoEn = OffsetDateTime.now();
+		this.actualizadoEn = this.creadoEn;
+	}
+
 	public void actualizarDatosPersonales(String nombre, String apellido) {
 		this.nombre = nombre;
 		this.apellido = apellido;
+		this.actualizadoEn = OffsetDateTime.now();
+	}
+
+	public void desactivar() {
+		this.activo = false;
+		this.actualizadoEn = OffsetDateTime.now();
+	}
+
+	public void activar() {
+		this.activo = true;
 		this.actualizadoEn = OffsetDateTime.now();
 	}
 

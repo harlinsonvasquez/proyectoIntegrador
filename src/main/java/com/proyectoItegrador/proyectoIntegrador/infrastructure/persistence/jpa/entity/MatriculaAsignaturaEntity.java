@@ -43,4 +43,19 @@ public class MatriculaAsignaturaEntity extends BaseEntity {
 		this.fechaEstado = OffsetDateTime.now();
 	}
 
+	public MatriculaAsignaturaEntity(EstudianteEntity estudiante, OfertaAsignaturaEntity ofertaAsignatura,
+			EstadoMatricula estado, BigDecimal notaFinal) {
+		this.estudiante = estudiante;
+		this.ofertaAsignatura = ofertaAsignatura;
+		this.estado = estado;
+		this.notaFinal = notaFinal;
+		this.fechaEstado = OffsetDateTime.now();
+	}
+
+	public void actualizar(EstadoMatricula estado, BigDecimal notaFinal) {
+		this.estado = estado;
+		this.notaFinal = notaFinal;
+		this.fechaEstado = OffsetDateTime.now();
+	}
+
 }

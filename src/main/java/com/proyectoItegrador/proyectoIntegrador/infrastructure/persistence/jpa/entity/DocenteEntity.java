@@ -26,4 +26,25 @@ public class DocenteEntity extends BaseEntity {
 	@Column(name = "activo", nullable = false)
 	private boolean activo;
 
+	public DocenteEntity(UsuarioEntity usuario, String codigoDocente) {
+		this.usuario = usuario;
+		this.codigoDocente = codigoDocente;
+		this.activo = true;
+	}
+
+	public void actualizar(String codigoDocente, boolean activo) {
+		this.codigoDocente = codigoDocente;
+		this.activo = activo;
+	}
+
+	public void inactivar() {
+		this.activo = false;
+		this.usuario.desactivar();
+	}
+
+	public void reactivar() {
+		this.activo = true;
+		this.usuario.activar();
+	}
+
 }

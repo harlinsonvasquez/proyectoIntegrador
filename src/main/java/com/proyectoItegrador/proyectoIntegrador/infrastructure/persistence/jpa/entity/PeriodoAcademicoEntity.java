@@ -26,4 +26,18 @@ public class PeriodoAcademicoEntity extends BaseEntity {
 	@Column(name = "fecha_fin", nullable = false)
 	private LocalDate fechaFin;
 
+	public PeriodoAcademicoEntity(String codigo, String nombre, LocalDate fechaInicio, LocalDate fechaFin) {
+		this.codigo = codigo;
+		this.nombre = nombre;
+		this.fechaInicio = fechaInicio;
+		this.fechaFin = fechaFin;
+	}
+
+	public void actualizar(String codigo, String nombre, LocalDate fechaInicio, LocalDate fechaFin) {
+		this.codigo = codigo;
+		this.nombre = nombre;
+		this.fechaInicio = fechaInicio;
+		this.fechaFin = fechaFin;
+	}
+
 }

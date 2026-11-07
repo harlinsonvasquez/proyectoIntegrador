@@ -30,4 +30,20 @@ public class PlanAsignaturaEntity extends BaseEntity {
 	@Column(name = "obligatoria", nullable = false)
 	private boolean obligatoria;
 
+	public PlanAsignaturaEntity(PlanEstudioEntity planEstudio, AsignaturaEntity asignatura,
+			Short semestreSugerido, boolean obligatoria) {
+		this.planEstudio = planEstudio;
+		this.asignatura = asignatura;
+		this.semestreSugerido = semestreSugerido;
+		this.obligatoria = obligatoria;
+	}
+
+	public void actualizar(PlanEstudioEntity planEstudio, AsignaturaEntity asignatura,
+			Short semestreSugerido, boolean obligatoria) {
+		this.planEstudio = planEstudio;
+		this.asignatura = asignatura;
+		this.semestreSugerido = semestreSugerido;
+		this.obligatoria = obligatoria;
+	}
+
 }

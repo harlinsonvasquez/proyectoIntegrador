@@ -25,4 +25,22 @@ public class AsignaturaEntity extends BaseEntity {
 	@Column(name = "activo", nullable = false)
 	private boolean activo;
 
+	public AsignaturaEntity(String codigo, String nombre, Short creditos, boolean activo) {
+		this.codigo = codigo;
+		this.nombre = nombre;
+		this.creditos = creditos;
+		this.activo = activo;
+	}
+
+	public void actualizar(String codigo, String nombre, Short creditos, boolean activo) {
+		this.codigo = codigo;
+		this.nombre = nombre;
+		this.creditos = creditos;
+		this.activo = activo;
+	}
+
+	public void desactivar() {
+		this.activo = false;
+	}
+
 }

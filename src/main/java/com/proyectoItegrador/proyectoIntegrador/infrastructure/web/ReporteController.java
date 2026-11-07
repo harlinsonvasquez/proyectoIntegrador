@@ -4,6 +4,9 @@ import com.proyectoItegrador.proyectoIntegrador.application.service.ReporteAppli
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.config.AuthenticatedUser;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.entity.EstadoSolicitud;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.ReporteSolicitudesResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,10 +17,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/reportes")
 @RequiredArgsConstructor
+@Tag(name = "Reportes", description = "Indicadores agregados sobre las solicitudes de cancelación.")
+@SecurityRequirement(name = "firebaseBearer")
 public class ReporteController {
     private final ReporteApplicationService service;
 
     @GetMapping("/solicitudes")
+    @Operation(summary = "Generar reporte de solicitudes", description = "Resume solicitudes y admite filtros opcionales por estado, programa y periodo.")
     public ReporteSolicitudesResponse solicitudes(@AuthenticationPrincipal AuthenticatedUser actor,
             @RequestParam(required = false) EstadoSolicitud estado,
             @RequestParam(required = false) Long programaId,

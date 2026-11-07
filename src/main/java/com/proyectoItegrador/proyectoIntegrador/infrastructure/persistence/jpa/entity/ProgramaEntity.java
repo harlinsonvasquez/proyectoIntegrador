@@ -22,4 +22,20 @@ public class ProgramaEntity extends BaseEntity {
 	@Column(name = "activo", nullable = false)
 	private boolean activo;
 
+	public ProgramaEntity(String codigo, String nombre, boolean activo) {
+		this.codigo = codigo;
+		this.nombre = nombre;
+		this.activo = activo;
+	}
+
+	public void actualizar(String codigo, String nombre, boolean activo) {
+		this.codigo = codigo;
+		this.nombre = nombre;
+		this.activo = activo;
+	}
+
+	public void desactivar() {
+		this.activo = false;
+	}
+
 }

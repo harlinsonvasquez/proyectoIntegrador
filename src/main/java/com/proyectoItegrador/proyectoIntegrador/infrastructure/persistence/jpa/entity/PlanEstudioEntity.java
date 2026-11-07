@@ -39,4 +39,30 @@ public class PlanEstudioEntity extends BaseEntity {
 	@Column(name = "activo", nullable = false)
 	private boolean activo;
 
+	public PlanEstudioEntity(ProgramaEntity programa, String codigo, String nombre, String version,
+			LocalDate fechaInicio, LocalDate fechaFin, boolean activo) {
+		this.programa = programa;
+		this.codigo = codigo;
+		this.nombre = nombre;
+		this.version = version;
+		this.fechaInicio = fechaInicio;
+		this.fechaFin = fechaFin;
+		this.activo = activo;
+	}
+
+	public void actualizar(ProgramaEntity programa, String codigo, String nombre, String version,
+			LocalDate fechaInicio, LocalDate fechaFin, boolean activo) {
+		this.programa = programa;
+		this.codigo = codigo;
+		this.nombre = nombre;
+		this.version = version;
+		this.fechaInicio = fechaInicio;
+		this.fechaFin = fechaFin;
+		this.activo = activo;
+	}
+
+	public void desactivar() {
+		this.activo = false;
+	}
+
 }
