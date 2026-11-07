@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Claves de servicio y configuración local de Firebase
+/secrets/
+*service-account*.json
+firebase-adminsdk*.json
+firebase_key.json
