@@ -55,6 +55,11 @@ public class UsuarioEntity extends BaseEntity {
 		this.actualizadoEn = OffsetDateTime.now();
 	}
 
+	public void cambiarRol(RolEntity rol) {
+		this.rol = rol;
+		this.actualizadoEn = OffsetDateTime.now();
+	}
+
 	public void desactivar() {
 		this.activo = false;
 		this.actualizadoEn = OffsetDateTime.now();

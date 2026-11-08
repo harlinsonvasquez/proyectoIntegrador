@@ -5,6 +5,7 @@ import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.e
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.entity.EstadoEstudiante;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.entity.EstadoMatricula;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.entity.OperacionAuditoria;
+import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.entity.RolNombre;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -63,6 +64,7 @@ public final class AdminDtos {
     public record PerfilRequest(@Size(max = 100) String municipioResidencia,
             @Min(1) @Max(6) Short estrato, @Size(max = 50) String situacionLaboral,
             boolean requiereApoyo, @Size(max = 1000) String observacion) {}
+    public record CambiarRolRequest(@NotNull RolNombre rol, @Size(max = 30) String codigoDocente) {}
     public record UsuarioResponse(Long id, String correo, String nombre, String apellido,
             String rol, boolean activo) {}
     public record EstudianteResponse(Long id, Long usuarioId, String correo, String nombre,

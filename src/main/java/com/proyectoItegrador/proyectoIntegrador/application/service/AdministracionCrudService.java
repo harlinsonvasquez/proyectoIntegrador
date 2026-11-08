@@ -52,6 +52,49 @@ public class AdministracionCrudService {
         return usuarios.findAll().stream().map(this::usuarioResponse).toList();
     }
 
+    @Transactional
+    public UsuarioResponse cambiarRol(AuthenticatedUser actor, Long id, CambiarRolRequest request) {
+        if (actor.userId().equals(id))
+            throw regla(HttpStatus.CONFLICT, "No puedes cambiar tu propio rol.");
+
+        var usuario = buscar(usuarios, id, "Usuario no encontrado.");
+        RolNombre rolAnterior = usuario.getRol().getNombre();
+        RolNombre rolNuevo = request.rol();
+
+        if (rolAnterior != rolNuevo && rolAnterior == RolNombre.ADMINISTRADOR
+                && rolNuevo != RolNombre.ADMINISTRADOR
+                && usuarios.countByRol_NombreAndActivoTrue(RolNombre.ADMINISTRADOR) <= 1)
+            throw regla(HttpStatus.CONFLICT, "No se puede cambiar el rol del último administrador activo.");
+
+        if (rolNuevo == RolNombre.ESTUDIANTE && estudiantes.findByUsuario_Id(id).isEmpty())
+            throw regla(HttpStatus.CONFLICT,
+                    "El usuario no tiene perfil de estudiante; créalo mediante el flujo de registro de estudiante.");
+
+        if (rolNuevo == RolNombre.DOCENTE) {
+            var docente = docentes.findByUsuario_Id(id);
+            if (docente.isEmpty()) {
+                var creado = docentes.save(new DocenteEntity(usuario, opcional(request.codigoDocente())));
+                audit(actor, "docente", creado.getId(), OperacionAuditoria.INSERT, null, response(creado));
+            } else if (usuario.isActivo() && !docente.get().isActivo()) {
+                var oldDocente = response(docente.get());
+                docente.get().actualizar(
+                        opcional(request.codigoDocente()) == null
+                                ? docente.get().getCodigoDocente() : opcional(request.codigoDocente()),
+                        true);
+                audit(actor, "docente", docente.get().getId(), OperacionAuditoria.UPDATE,
+                        oldDocente, response(docente.get()));
+            }
+        }
+
+        if (rolAnterior == rolNuevo) return usuarioResponse(usuario);
+
+        var old = usuarioResponse(usuario);
+        usuario.cambiarRol(rol(rolNuevo));
+        var updated = usuarioResponse(usuario);
+        audit(actor, "usuario", id, OperacionAuditoria.UPDATE, old, updated);
+        return updated;
+    }
+
     @Transactional(readOnly = true)
     public List<ProgramaResponse> programas() { return programas.findAll().stream().map(this::response).toList(); }
     @Transactional(readOnly = true)

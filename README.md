@@ -119,7 +119,7 @@ historial ni la cuenta de Firebase.
 
 | Recurso | Rutas administrativas |
 |---|---|
-| Usuarios | `GET /api/admin/usuarios` (consulta) |
+| Usuarios | `GET /api/admin/usuarios` (consulta); `PATCH /api/admin/usuarios/{id}/rol` (cambio de rol con auditoría) |
 | Programas | `GET, POST /api/admin/programas`; `GET, PUT, DELETE /api/admin/programas/{id}` |
 | Planes de estudio | `GET, POST /api/admin/planes-estudio`; `GET, PUT, DELETE /api/admin/planes-estudio/{id}` |
 | Asignaturas | `GET, POST /api/admin/asignaturas`; `GET, PUT, DELETE /api/admin/asignaturas/{id}` |
@@ -162,6 +162,15 @@ el CRUD: la cancelación debe tramitarse con una solicitud, y `PUT` no permite
 reactivar una matrícula ya cancelada. El perfil sociodemográfico se consulta y
 actualiza, pero no se elimina. Las restricciones de claves foráneas impiden
 eliminar físicamente catálogos con registros dependientes.
+
+El cambio de rol es una operación administrativa separada del CRUD de perfiles.
+`PATCH /api/admin/usuarios/{id}/rol` acepta `{"rol":"DOCENTE"}` (y opcionalmente
+`"codigoDocente"`); crea el perfil docente si falta y conserva el perfil de
+estudiante y su historial. Para asignar `ESTUDIANTE`, el usuario debe tener ya
+un perfil estudiantil; ese perfil se crea mediante el alta de estudiante. No se
+permite cambiar el propio rol ni degradar al último administrador activo. Cada
+cambio registra el rol anterior y el nuevo en `auditoria_cambio`. Los roles
+admitidos son `ESTUDIANTE`, `DOCENTE` y `ADMINISTRADOR`.
 
 Al aprobar una cancelación, el servicio actualiza la matrícula, registra el
 seguimiento y la auditoría en la misma operación y agrega un evento a
