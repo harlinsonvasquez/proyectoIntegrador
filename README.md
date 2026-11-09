@@ -71,6 +71,10 @@ indicador `leida`. Las tablas relacionales siguen siendo la fuente oficial para
 solicitudes, historial y reportes; los nodos existentes `cursos` y `matriculas`
 no se duplican ni se modifican con este flujo.
 
+Para permitir llamadas desde el frontend, el backend acepta por defecto
+`http://localhost:5173`. En despliegue configura `CORS_ALLOWED_ORIGINS` con el
+origen exacto de Vercel; se permiten varios orígenes separados por comas.
+
 ## Endpoints implementados
 
 Todos requieren autenticación Firebase. Las rutas `/docente` y los reportes
