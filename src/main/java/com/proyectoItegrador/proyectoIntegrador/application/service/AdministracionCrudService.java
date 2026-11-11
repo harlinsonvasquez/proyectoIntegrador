@@ -218,13 +218,13 @@ public class AdministracionCrudService {
     @Transactional(readOnly = true)
     public List<PrerrequisitoResponse> prerrequisitos() {
         return prerrequisitos.findAll().stream()
-                .map(p -> new PrerrequisitoResponse(p.getPlanAsignatura().getId(), p.getPrerrequisito().getId()))
+                .map(this::response)
                 .toList();
     }
     @Transactional(readOnly = true)
     public PrerrequisitoResponse prerrequisito(Long planId, Long requisitoId) {
         var e = buscar(prerrequisitos, new PrerrequisitoId(planId, requisitoId), "Prerrequisito no encontrado.");
-        return new PrerrequisitoResponse(e.getPlanAsignatura().getId(), e.getPrerrequisito().getId());
+        return response(e);
     }
     @Transactional
     public PrerrequisitoResponse crearPrerrequisito(AuthenticatedUser actor, PrerrequisitoRequest r) {
@@ -233,10 +233,10 @@ public class AdministracionCrudService {
         var e = new PrerrequisitoEntity(planAsignaturaEntity(r.planAsignaturaId()),
                 planAsignaturaEntity(r.prerrequisitoPlanAsignaturaId()));
         prerrequisitos.save(e);
-        var response = new PrerrequisitoResponse(r.planAsignaturaId(), r.prerrequisitoPlanAsignaturaId());
+        var created = response(e);
         audit(actor, "prerrequisito", r.planAsignaturaId() + ":" + r.prerrequisitoPlanAsignaturaId(),
-                OperacionAuditoria.INSERT, null, response);
-        return response;
+                OperacionAuditoria.INSERT, null, created);
+        return created;
     }
     @Transactional
     public void eliminarPrerrequisito(AuthenticatedUser actor, Long planId, Long requisitoId) {
@@ -244,7 +244,7 @@ public class AdministracionCrudService {
         var e = buscar(prerrequisitos, id, "Prerrequisito no encontrado.");
         prerrequisitos.delete(e);
         audit(actor, "prerrequisito", planId + ":" + requisitoId, OperacionAuditoria.DELETE,
-                new PrerrequisitoResponse(planId, requisitoId), null);
+        response(e), null);
     }
 
     @Transactional(readOnly = true)
@@ -466,8 +466,8 @@ public class AdministracionCrudService {
         return auditorias.buscar(opcional(entidad), opcional(registroId), usuarioId,
                 PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "fecha")))
                 .map(a -> new AuditoriaResponse(a.getId(), a.getUsuario() == null ? null : a.getUsuario().getId(),
-                        a.getEntidad(), a.getRegistroId(), a.getOperacion(), a.getValoresAnteriores(),
-                        a.getValoresNuevos(), a.getFecha()));
+                        a.getEntidad(), a.getRegistroId(), a.getOperacion(), snapshot(a.getValoresAnteriores()),
+                        snapshot(a.getValoresNuevos()), a.getFecha()));
     }
 
     private <T> T crearCuenta(String email, String password, String nombre, String apellido,
@@ -550,21 +550,35 @@ public class AdministracionCrudService {
     }
     private PlanResponse response(PlanEstudioEntity e) {
         return new PlanResponse(e.getId(), e.getPrograma().getId(), e.getCodigo(), e.getNombre(),
-                e.getVersion(), e.getFechaInicio(), e.getFechaFin(), e.isActivo());
+                e.getVersion(), e.getFechaInicio(), e.getFechaFin(), e.isActivo(),
+                e.getPrograma().getCodigo(), e.getPrograma().getNombre());
     }
     private AsignaturaResponse response(AsignaturaEntity e) {
         return new AsignaturaResponse(e.getId(), e.getCodigo(), e.getNombre(), e.getCreditos(), e.isActivo());
     }
     private PlanAsignaturaResponse response(PlanAsignaturaEntity e) {
         return new PlanAsignaturaResponse(e.getId(), e.getPlanEstudio().getId(), e.getAsignatura().getId(),
-                e.getSemestreSugerido(), e.isObligatoria());
+                e.getSemestreSugerido(), e.isObligatoria(), e.getPlanEstudio().getCodigo(),
+                e.getPlanEstudio().getNombre(), e.getAsignatura().getCodigo(), e.getAsignatura().getNombre());
+    }
+    private PrerrequisitoResponse response(PrerrequisitoEntity e) {
+        var subject = e.getPlanAsignatura().getAsignatura();
+        var prerequisite = e.getPrerrequisito().getAsignatura();
+        return new PrerrequisitoResponse(e.getPlanAsignatura().getId(), e.getPrerrequisito().getId(),
+                subject.getCodigo(), subject.getNombre(), prerequisite.getCodigo(), prerequisite.getNombre());
     }
     private PeriodoResponse response(PeriodoAcademicoEntity e) {
         return new PeriodoResponse(e.getId(), e.getCodigo(), e.getNombre(), e.getFechaInicio(), e.getFechaFin());
     }
     private OfertaResponse response(OfertaAsignaturaEntity e) {
+        var subject = e.getPlanAsignatura().getAsignatura();
+        var teacher = e.getDocente();
         return new OfertaResponse(e.getId(), e.getPlanAsignatura().getId(), e.getPeriodo().getId(),
-                e.getGrupo(), e.getCupo(), e.getDocente() == null ? null : e.getDocente().getId());
+                e.getGrupo(), e.getCupo(), teacher == null ? null : teacher.getId(),
+                subject.getCodigo(), subject.getNombre(), e.getPeriodo().getCodigo(), e.getPeriodo().getNombre(),
+                teacher == null ? null : teacher.getCodigoDocente(),
+                teacher == null ? null : teacher.getUsuario().getNombre(),
+                teacher == null ? null : teacher.getUsuario().getApellido());
     }
     private UsuarioResponse usuarioResponse(UsuarioEntity e) {
         return new UsuarioResponse(e.getId(), e.getCorreo(), e.getNombre(), e.getApellido(),
@@ -580,13 +594,22 @@ public class AdministracionCrudService {
                 e.getUsuario().getNombre(), e.getUsuario().getApellido(), e.getCodigoDocente(), e.isActivo());
     }
     private MatriculaResponse response(MatriculaAsignaturaEntity e) {
+        var student = e.getEstudiante();
+        var user = student.getUsuario();
+        var offer = e.getOfertaAsignatura();
+        var subject = offer.getPlanAsignatura().getAsignatura();
+        var period = offer.getPeriodo();
         return new MatriculaResponse(e.getId(), e.getEstudiante().getId(),
-                e.getOfertaAsignatura().getId(), e.getEstado(), e.getNotaFinal());
+                offer.getId(), e.getEstado(), e.getNotaFinal(), student.getCodigoEstudiantil(),
+                user.getNombre(), user.getApellido(), subject.getCodigo(), subject.getNombre(),
+                period.getCodigo(), period.getNombre(), offer.getGrupo());
     }
     private ActividadAdminResponse response(ActividadEstudiantilEntity e) {
+        var student = e.getEstudiante();
         return new ActividadAdminResponse(e.getId(), e.getEstudiante().getId(), e.getCategoria(), e.getNombre(),
                 e.getDescripcion(), e.getOrganizacion(), e.getFechaInicio(), e.getFechaFin(),
-                e.getEvidenciaUrl(), e.getCreadaEn());
+                e.getEvidenciaUrl(), e.getCreadaEn(), student.getCodigoEstudiantil(),
+                student.getUsuario().getNombre(), student.getUsuario().getApellido());
     }
     private PerfilAdminResponse response(PerfilSociodemograficoEntity e) {
         return new PerfilAdminResponse(e.getEstudiante().getId(), e.getMunicipioResidencia(), e.getEstrato(),
@@ -597,6 +620,9 @@ public class AdministracionCrudService {
         auditorias.save(new AuditoriaCambioEntity(usuarioActor(actor), table, String.valueOf(id), op,
                 before == null ? null : mapper.valueToTree(before),
                 after == null ? null : mapper.valueToTree(after)));
+    }
+    private Object snapshot(com.fasterxml.jackson.databind.JsonNode node) {
+        return node == null ? null : mapper.convertValue(node, Object.class);
     }
     private <T, ID> T buscar(org.springframework.data.repository.CrudRepository<T, ID> repository,
             ID id, String message) {

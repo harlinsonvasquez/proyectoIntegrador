@@ -5,6 +5,9 @@ import com.proyectoItegrador.proyectoIntegrador.application.service.DatosPersona
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.config.AuthenticatedUser;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.AsignaturaTrayectoriaResponse;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.PerfilEstudianteResponse;
+import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.IntentoAcademicoResponse;
+import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.OfertaDisponibleResponse;
+import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.PeriodoAcademicoResponse;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.ActualizarDatosPersonalesRequest;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.DatosPersonalesResponse;
 import jakarta.validation.Valid;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/estudiantes")
@@ -49,6 +53,22 @@ public class ConsultaAcademicaController {
         return service.miTrayectoria(actor);
     }
 
+    @GetMapping("/me/trayectoria/historial")
+    public List<IntentoAcademicoResponse> miHistorial(@AuthenticationPrincipal AuthenticatedUser actor) {
+        return service.miHistorial(actor);
+    }
+
+    @GetMapping("/periodos")
+    public List<PeriodoAcademicoResponse> periodos(@AuthenticationPrincipal AuthenticatedUser actor) {
+        return service.periodos(actor);
+    }
+
+    @GetMapping("/me/ofertas")
+    public List<OfertaDisponibleResponse> ofertas(@AuthenticationPrincipal AuthenticatedUser actor,
+            @RequestParam Long periodoId) {
+        return service.ofertas(actor, periodoId);
+    }
+
     @GetMapping("/{id}/perfil")
     @Operation(summary = "Consultar perfil de estudiante", description = "Permite a un docente autorizado consultar el perfil del estudiante indicado.")
     public PerfilEstudianteResponse perfil(@AuthenticationPrincipal AuthenticatedUser actor, @PathVariable Long id) {
@@ -60,5 +80,11 @@ public class ConsultaAcademicaController {
     public List<AsignaturaTrayectoriaResponse> trayectoria(@AuthenticationPrincipal AuthenticatedUser actor,
             @PathVariable Long id) {
         return service.trayectoriaParaDocente(actor, id);
+    }
+
+    @GetMapping("/{id}/trayectoria/historial")
+    public List<IntentoAcademicoResponse> historial(@AuthenticationPrincipal AuthenticatedUser actor,
+            @PathVariable Long id) {
+        return service.historialParaDocente(actor, id);
     }
 }

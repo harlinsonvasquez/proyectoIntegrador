@@ -1,6 +1,5 @@
 package com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.entity.CategoriaActividad;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.entity.EstadoEstudiante;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.entity.EstadoMatricula;
@@ -74,22 +73,31 @@ public final class AdminDtos {
             String apellido, String codigoDocente, boolean activo) {}
     public record ProgramaResponse(Long id, String codigo, String nombre, boolean activo) {}
     public record PlanResponse(Long id, Long programaId, String codigo, String nombre, String version,
-            LocalDate fechaInicio, LocalDate fechaFin, boolean activo) {}
+            LocalDate fechaInicio, LocalDate fechaFin, boolean activo,
+            String programaCodigo, String programaNombre) {}
     public record AsignaturaResponse(Long id, String codigo, String nombre, Short creditos, boolean activo) {}
     public record PlanAsignaturaResponse(Long id, Long planEstudioId, Long asignaturaId,
-            Short semestreSugerido, boolean obligatoria) {}
-    public record PrerrequisitoResponse(Long planAsignaturaId, Long prerrequisitoPlanAsignaturaId) {}
+            Short semestreSugerido, boolean obligatoria, String planCodigo, String planNombre,
+            String asignaturaCodigo, String asignaturaNombre) {}
+    public record PrerrequisitoResponse(Long planAsignaturaId, Long prerrequisitoPlanAsignaturaId,
+            String asignaturaCodigo, String asignaturaNombre,
+            String prerrequisitoCodigo, String prerrequisitoNombre) {}
     public record PeriodoResponse(Long id, String codigo, String nombre, LocalDate fechaInicio, LocalDate fechaFin) {}
     public record OfertaResponse(Long id, Long planAsignaturaId, Long periodoId, String grupo,
-            Integer cupo, Long docenteId) {}
+            Integer cupo, Long docenteId, String asignaturaCodigo, String asignaturaNombre,
+            String codigoPeriodo, String periodo, String codigoDocente, String nombreDocente,
+            String apellidoDocente) {}
     public record MatriculaResponse(Long id, Long estudianteId, Long ofertaAsignaturaId,
-            EstadoMatricula estado, BigDecimal notaFinal) {}
+            EstadoMatricula estado, BigDecimal notaFinal, String codigoEstudiantil,
+            String nombreEstudiante, String apellidoEstudiante, String asignaturaCodigo,
+            String asignaturaNombre, String codigoPeriodo, String periodo, String grupo) {}
     public record ActividadAdminResponse(Long id, Long estudianteId, CategoriaActividad categoria,
             String nombre, String descripcion, String organizacion, LocalDate fechaInicio,
-            LocalDate fechaFin, String evidenciaUrl, OffsetDateTime creadaEn) {}
+            LocalDate fechaFin, String evidenciaUrl, OffsetDateTime creadaEn,
+            String codigoEstudiantil, String nombreEstudiante, String apellidoEstudiante) {}
     public record PerfilAdminResponse(Long estudianteId, String municipioResidencia, Short estrato,
             String situacionLaboral, boolean requiereApoyo, String observacion, OffsetDateTime actualizadoEn) {}
     public record AuditoriaResponse(Long id, Long usuarioId, String entidad, String registroId,
-            OperacionAuditoria operacion, JsonNode valoresAnteriores, JsonNode valoresNuevos,
+            OperacionAuditoria operacion, Object valoresAnteriores, Object valoresNuevos,
             OffsetDateTime fecha) {}
 }

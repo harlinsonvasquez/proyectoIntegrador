@@ -167,27 +167,30 @@ function Topbar({ activeItem, onMenu, user }) {
 
 function Dashboard({ role, user, setActive }) {
   const [stats, setStats] = useState([])
-  const [loading, setLoading] = useState(true)
   useEffect(() => {
     let alive = true
-    async function load() {
-      const endpoints = role === 'ADMINISTRADOR'
-        ? [['Programas', '/api/admin/programas'], ['Estudiantes', '/api/admin/estudiantes'], ['Docentes', '/api/admin/docentes'], ['Solicitudes', '/api/admin/auditoria?size=1']]
-        : role === 'DOCENTE'
-          ? [['Solicitudes pendientes', '/api/docente/solicitudes?estado=PENDIENTE'], ['Estudiantes', '/api/docente/estudiantes'], ['Programas', '/api/admin/programas']]
-          : [['Mi trayectoria', '/api/estudiantes/me/trayectoria'], ['Mis actividades', '/api/estudiantes/me/actividades'], ['Mis solicitudes', '/api/solicitudes/mias']]
-      const results = await Promise.all(endpoints.map(async ([label, path]) => {
+    const endpoints = role === 'ADMINISTRADOR'
+      ? [
+          ['Matrículas', '/api/admin/matriculas'], ['Ofertas', '/api/admin/ofertas'],
+          ['Asignaturas', '/api/admin/asignaturas'], ['Programas', '/api/admin/programas'],
+          ['Estudiantes', '/api/admin/estudiantes'], ['Docentes', '/api/admin/docentes'],
+          ['Solicitudes', '/api/reportes/solicitudes'],
+        ]
+      : role === 'DOCENTE'
+        ? [['Solicitudes pendientes', '/api/docente/solicitudes?estado=PENDIENTE'], ['Estudiantes', '/api/docente/estudiantes'], ['Programas', '/api/admin/programas']]
+        : [['Mi trayectoria', '/api/estudiantes/me/trayectoria'], ['Mis actividades', '/api/estudiantes/me/actividades'], ['Mis solicitudes', '/api/solicitudes/mias']]
+    void Promise.resolve().then(() => {
+      if (alive) setStats(endpoints.map(([label, path]) => ({ label, path, count: null, loading: true, ok: true })))
+    })
+    endpoints.forEach(async ([, path]) => {
         try {
           const value = await api.get(path)
-          const count = Array.isArray(value) ? value.length : value?.totalElements ?? value?.content?.length ?? 0
-          return { label, count, ok: true }
+          const count = Array.isArray(value) ? value.length : value?.total ?? value?.totalElements ?? value?.content?.length ?? 0
+          if (alive) setStats((current) => current.map((stat) => stat.path === path ? { ...stat, count, loading: false } : stat))
         } catch {
-          return { label, count: '—', ok: false }
+          if (alive) setStats((current) => current.map((stat) => stat.path === path ? { ...stat, count: '—', loading: false, ok: false } : stat))
         }
-      }))
-      if (alive) { setStats(results); setLoading(false) }
-    }
-    load()
+      })
     return () => { alive = false }
   }, [role])
   const roleHeading = role === 'ADMINISTRADOR' ? 'Administra tu comunidad académica.' : role === 'DOCENTE' ? 'Acompaña cada proceso de aprendizaje.' : 'Cada logro te acerca a tu meta.'
@@ -204,10 +207,10 @@ function Dashboard({ role, user, setActive }) {
       </section>
       <div className="section-heading"><div><span className="eyebrow">EN UN VISTAZO</span><h2>Tu resumen</h2></div><span className="muted small">Datos actualizados desde la plataforma</span></div>
       <div className="stats-grid">
-        {(loading ? Array.from({ length: role === 'DOCENTE' ? 3 : 4 }, () => ({ label: 'Cargando', count: '…', icon: '▤' })) : stats).map((stat, index) => (
-          <article className={`stat-card stat-${index}`} key={stat.label}>
+        {stats.map((stat, index) => (
+          <article className={`stat-card stat-${index}`} key={stat.path} title={!stat.ok ? 'No fue posible consultar este indicador.' : undefined}>
             <div className="stat-top"><span className="stat-icon">{['▤', '♙', '✳', '↗'][index % 4]}</span><span className="stat-period">AHORA</span></div>
-            <strong className="stat-value">{stat.count}</strong><span className="stat-label">{stat.label}</span>
+            <strong className="stat-value">{stat.loading ? '…' : stat.count}</strong><span className="stat-label">{stat.loading ? `Cargando ${stat.label.toLocaleLowerCase()}…` : stat.label}</span>
           </article>
         ))}
       </div>
@@ -241,6 +244,7 @@ function FieldInput({ field, value, onChange, options }) {
 
 function ResourcePage({ resource, onNotice }) {
   const [rows, setRows] = useState([])
+  const [omittedRows, setOmittedRows] = useState(0)
   const [optionsByName, setOptionsByName] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -249,10 +253,17 @@ function ResourcePage({ resource, onNotice }) {
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
     try {
       const result = await api.get(resource.listPath)
-      setRows(Array.isArray(result) ? result : result?.content || [])
+      const received = Array.isArray(result) ? result : result?.content || []
+      const validRows = received.filter((row) => row && typeof row === 'object' && !Array.isArray(row)
+        && Object.values(row).some((value) => value !== null && value !== undefined && value !== ''))
+      setRows(validRows)
+      setOmittedRows(received.length - validRows.length)
     } catch (err) {
+      setRows([])
       setError(errorMessage(err))
     } finally {
       setLoading(false)
@@ -339,10 +350,11 @@ function ResourcePage({ resource, onNotice }) {
       {error && <div className="notice notice-error">{error}<button className="text-button" onClick={load}>Reintentar</button></div>}
       <section className="panel table-panel">
         <div className="table-toolbar"><div><strong>{resource.tableTitle || `Registros de ${resource.title.toLocaleLowerCase()}`}</strong><span>{rows.length} en total</span></div><label className="searchbox"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar en la tabla…" /></label></div>
+        {omittedRows > 0 && <div className="notice notice-warning">Se omitieron {omittedRows} filas vacías recibidas de la API. Revisa esos registros en el backend o en la base de datos.</div>}
         <div className="table-scroll"><table><thead><tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}<th className="actions-head">Acciones</th></tr></thead>
           <tbody>{loading ? <tr><td colSpan={columns.length + 1} className="table-empty">Cargando información…</td></tr>
             : filtered.length === 0 ? <tr><td colSpan={columns.length + 1} className="table-empty">{error ? 'No fue posible obtener los datos.' : 'No hay registros para mostrar.'}</td></tr>
-              : filtered.map((row, index) => <tr key={resource.rowKey ? resource.rowKey(row) : row.id ?? index}>
+              : filtered.map((row, index) => <tr key={`${resource.rowKey ? resource.rowKey(row) : row.id ?? JSON.stringify(row)}-${index}`}>
                 {columns.map((column) => <td key={column.key}>{column.render ? column.render(row) : displayValue(row[column.key])}</td>)}
                 <td><div className="row-actions"><button title="Ver detalle" onClick={() => details(row)}>Ver</button>{resource.updatePath && <button title="Editar" onClick={() => startEdit(row)}>Editar</button>}{resource.deletePath && <button className="danger-text" title="Eliminar o desactivar" onClick={() => remove(row)}>Baja</button>}</div></td>
               </tr>)}
@@ -384,23 +396,62 @@ function displayValue(value) {
 }
 function humanize(value) { return value.replace(/([A-Z])/g, ' $1').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase()) }
 
-function Modal({ title, children, onClose }) {
+function Modal({ title, children, onClose, wide = false }) {
   useEffect(() => {
     const handleKey = (event) => { if (event.key === 'Escape') onClose() }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [onClose])
-  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="modal-card" role="dialog" aria-modal="true" aria-label={title}><header className="modal-header"><div><span className="eyebrow">AULANEXO · GESTIÓN</span><h3>{title}</h3></div><button className="icon-button" onClick={onClose} aria-label="Cerrar"><Icon name="close" /></button></header>{children}</section></div>
+  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className={`modal-card ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}><header className="modal-header"><div><span className="eyebrow">AULANEXO · GESTIÓN</span><h3>{title}</h3></div><button className="icon-button" onClick={onClose} aria-label="Cerrar"><Icon name="close" /></button></header>{children}</section></div>
 }
 
 function StudentSpace({ page, onNotice }) {
   if (page === 'trayectoria') return <SimpleDataPage title="Mi trayectoria académica" group="MI ESPACIO" description="Consulta el avance en tu plan de estudios, tus matrículas y los requisitos de cada asignatura." path="/api/estudiantes/me/trayectoria" onNotice={onNotice} />
+  if (page === 'historial-academico') return <AcademicHistory onNotice={onNotice} />
+  if (page === 'ofertas-academicas') return <AvailableOffers onNotice={onNotice} />
   if (page === 'perfil') return <SimpleDataPage title="Mi perfil" group="MI ESPACIO" description="Información del perfil de estudiante asociado a tu cuenta." path="/api/estudiantes/me" onNotice={onNotice} />
   if (page === 'sociodemografico') return <SimpleDataPage title="Perfil sociodemográfico" group="MI ESPACIO" description="Mantén actualizada tu información de caracterización." path="/api/estudiantes/me/sociodemografico" editPath="/api/estudiantes/me/sociodemografico" fields={socioFields} onNotice={onNotice} />
   if (page === 'actividades') return <ResourcePage resource={studentActivities} onNotice={onNotice} />
   if (page === 'solicitudes') return <StudentRequests onNotice={onNotice} />
   if (page === 'notificaciones') return <Notifications onNotice={onNotice} />
   return null
+}
+
+function AcademicHistory({ onNotice }) {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const load = useCallback(async () => {
+    setLoading(true); setError('')
+    try { setRows(await api.get('/api/estudiantes/me/trayectoria/historial')) }
+    catch (err) { setError(errorMessage(err)); onNotice(errorMessage(err), 'error') }
+    finally { setLoading(false) }
+  }, [onNotice])
+  useEffect(() => { void Promise.resolve().then(load) }, [load])
+  return <div className="page-content"><div className="section-heading page-title-row"><div><span className="eyebrow">MI VIDA ACADÉMICA</span><h2>Historial académico</h2><p>Consulta cada intento de matrícula, incluidos los cursos repetidos en distintos periodos.</p></div><button className="button button-soft" onClick={load}>Actualizar ↻</button></div>{error && <div className="notice notice-error">{error}</div>}<section className="panel table-panel"><div className="table-toolbar"><div><strong>Intentos académicos</strong><span>{rows.length} registros</span></div></div><div className="table-scroll"><table><thead><tr><th>Periodo</th><th>Código</th><th>Asignatura</th><th>Grupo</th><th>Estado</th><th>Nota final</th><th>Fecha estado</th></tr></thead><tbody>{loading ? <tr><td colSpan="7" className="table-empty">Consultando historial…</td></tr> : rows.length ? rows.map((row) => <tr key={row.matriculaId}><td>{row.codigoPeriodo} · {row.periodo}</td><td>{row.codigoAsignatura}</td><td>{row.asignatura}</td><td>{displayValue(row.grupo)}</td><td><span className={`status-pill ${statusClass(row.estado)}`}>{row.estado?.replaceAll('_', ' ')}</span></td><td>{displayValue(row.notaFinal)}</td><td>{displayValue(row.fechaEstado)}</td></tr>) : <tr><td colSpan="7" className="table-empty">Aún no hay matrículas en el historial.</td></tr>}</tbody></table></div></section></div>
+}
+
+function AvailableOffers({ onNotice }) {
+  const [periods, setPeriods] = useState([])
+  const [periodId, setPeriodId] = useState('')
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [initializing, setInitializing] = useState(true)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    api.get('/api/estudiantes/periodos').then((data) => setPeriods(data || []))
+      .catch((err) => { setError(errorMessage(err)); onNotice(errorMessage(err), 'error') })
+      .finally(() => setInitializing(false))
+  }, [onNotice])
+  const load = useCallback(async (event) => {
+    event?.preventDefault()
+    if (!periodId) return
+    setLoading(true); setError('')
+    try { setRows(await api.get(`/api/estudiantes/me/ofertas?periodoId=${encodeURIComponent(periodId)}`)) }
+    catch (err) { setError(errorMessage(err)); onNotice(errorMessage(err), 'error') }
+    finally { setLoading(false) }
+  }, [periodId, onNotice])
+  return <div className="page-content"><div className="section-heading"><div><span className="eyebrow">MI VIDA ACADÉMICA</span><h2>Ofertas disponibles</h2><p>Revisa las asignaturas ofertadas para tu plan, sus prerrequisitos y cupos. Esta consulta no crea una matrícula.</p></div></div><form className="panel filter-panel" onSubmit={load}><label>Periodo académico<select value={periodId} onChange={(event) => setPeriodId(event.target.value)} required><option value="">Selecciona un periodo…</option>{periods.map((period) => <option key={period.id} value={period.id}>{period.codigo} · {period.nombre}</option>)}</select></label><button className="button button-primary" disabled={initializing || loading || !periodId}>{loading ? 'Consultando…' : 'Consultar ofertas'}</button></form>{error && <div className="notice notice-error">{error}</div>}{!initializing && periods.length === 0 && <div className="notice notice-info">No hay periodos académicos disponibles.</div>}<section className="panel table-panel"><div className="table-toolbar"><div><strong>Asignaturas ofertadas</strong><span>{rows.length} ofertas</span></div></div><div className="table-scroll"><table><thead><tr><th>Asignatura</th><th>Grupo</th><th>Docente</th><th>Cupos</th><th>Prerrequisitos</th><th>Disponibilidad</th></tr></thead><tbody>{loading ? <tr><td colSpan="6" className="table-empty">Consultando ofertas…</td></tr> : rows.length ? rows.map((row) => <tr key={row.ofertaId}><td><strong>{row.codigoAsignatura}</strong><br />{row.asignatura}</td><td>{displayValue(row.grupo)}</td><td>{displayValue(row.docenteId)}</td><td>{row.cupo == null ? 'Sin límite' : `${row.cuposOcupados}/${row.cupo} · ${row.cuposDisponibles} libres`}</td><td>{row.prerrequisitosCumplidos ? 'Cumplidos' : (row.prerrequisitosPendientes || []).join(', ') || 'Pendientes'}</td><td><span className={`status-pill ${row.disponible ? 'status-positive' : 'status-negative'}`}>{row.disponible ? 'Disponible' : row.yaMatriculada ? 'Ya matriculada' : !row.prerrequisitosCumplidos ? 'Faltan prerrequisitos' : 'Sin cupos'}</span></td></tr>) : <tr><td colSpan="6" className="table-empty">Selecciona un periodo para ver sus ofertas.</td></tr>}</tbody></table></div></section></div>
 }
 
 function SimpleDataPage({ title, group, description, path, editPath, fields = [], onNotice }) {
@@ -465,9 +516,9 @@ function Notifications({ onNotice }) {
 function TeacherSpace({ page, onNotice }) {
   if (page === 'solicitudes-docente') return <TeacherRequests onNotice={onNotice} />
   if (page === 'estudiantes-docente') return <TeacherStudents onNotice={onNotice} />
-  if (page === 'reporte-solicitudes') return <ReportPage title="Reporte de solicitudes" path="/api/reportes/solicitudes" filters={reportRequestFilters} onNotice={onNotice} />
-  if (page === 'reporte-academico') return <ReportPage title="Desempeño académico" path="/api/reportes/desempeno" filters={programFilter} onNotice={onNotice} />
-  if (page === 'reporte-participacion') return <ReportPage title="Participación estudiantil" path="/api/reportes/participacion" filters={programFilter} onNotice={onNotice} />
+  if (page === 'reporte-solicitudes') return <ReportPage title="Reporte de solicitudes" path="/api/reportes/solicitudes" csvPath="/api/reportes/solicitudes/csv" filters={reportRequestFilters} onNotice={onNotice} />
+  if (page === 'reporte-academico') return <ReportPage title="Desempeño académico" path="/api/reportes/desempeno" csvPath="/api/reportes/desempeno/csv" filters={programFilter} onNotice={onNotice} />
+  if (page === 'reporte-participacion') return <ReportPage title="Participación estudiantil" path="/api/reportes/participacion" csvPath="/api/reportes/participacion/csv" filters={programFilter} onNotice={onNotice} />
   return null
 }
 
@@ -524,23 +575,24 @@ function TeacherStudents({ onNotice }) {
   useEffect(() => { void Promise.resolve().then(search) }, [search])
   async function openProfile(row) {
     try {
-      const [perfil, trayectoria, actividades, social] = await Promise.all([
+      const [perfil, trayectoria, historial, actividades, social] = await Promise.all([
         api.get(`/api/estudiantes/${row.id}/perfil`),
         api.get(`/api/estudiantes/${row.id}/trayectoria`),
+        api.get(`/api/estudiantes/${row.id}/trayectoria/historial`),
         api.get(`/api/docente/estudiantes/${row.id}/actividades`),
         api.get(`/api/estudiantes/${row.id}/sociodemografico`),
       ])
-      setSelected({ perfil, trayectoria, actividades, social })
+      setSelected({ perfil, trayectoria, historial, actividades, social })
     } catch (err) { onNotice(errorMessage(err), 'error') }
   }
-  return <div className="page-content"><div className="section-heading"><div><span className="eyebrow">ESPACIO DOCENTE</span><h2>Estudiantes</h2><p>Encuentra estudiantes y consulta su información académica.</p></div></div><form className="filter-panel panel" onSubmit={search}><label>Buscar estudiante<input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nombre o código" /></label><label>Programa<select value={programaId} onChange={(e) => setProgramaId(e.target.value)}><option value="">Todos los programas</option>{programs.map((program) => <option key={program.id} value={program.id}>{program.nombre}</option>)}</select></label><label>Estado<select value={estado} onChange={(e) => setEstado(e.target.value)}><option value="">Todos</option>{enums.EstadoEstudiante.map((item) => <option key={item}>{item}</option>)}</select></label><button className="button button-primary">Buscar estudiantes</button></form>{error && <div className="notice notice-error">{error}</div>}<StudentTable rows={rows} loading={loading} onSelect={openProfile} />{selected && <Modal title={`Ficha de ${selected.perfil.nombre} ${selected.perfil.apellido}`} onClose={() => setSelected(null)}><div className="profile-tabs"><h4>Perfil académico</h4><dl className="detail-list">{Object.entries(selected.perfil).map(([key, value]) => <div key={key}><dt>{humanize(key)}</dt><dd>{displayValue(value)}</dd></div>)}</dl><h4>Perfil sociodemográfico</h4><dl className="detail-list">{Object.entries(selected.social || {}).map(([key, value]) => <div key={key}><dt>{humanize(key)}</dt><dd>{displayValue(value)}</dd></div>)}</dl><h4>Trayectoria ({selected.trayectoria.length})</h4><div className="compact-list">{selected.trayectoria.map((item) => <div key={item.planAsignaturaId}><span>{item.nombre}</span><span className={`status-pill ${statusClass(item.estado)}`}>{item.estado}</span></div>)}</div><h4>Actividades ({selected.actividades.length})</h4><div className="compact-list">{selected.actividades.map((item, index) => <div key={item.id || index}><span>{item.nombre}</span><span>{item.categoria}</span></div>)}</div></div></Modal>}</div>
+  return <div className="page-content"><div className="section-heading"><div><span className="eyebrow">ESPACIO DOCENTE</span><h2>Estudiantes</h2><p>Encuentra estudiantes y consulta su información académica.</p></div></div><form className="filter-panel panel" onSubmit={search}><label>Buscar estudiante<input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nombre o código" /></label><label>Programa<select value={programaId} onChange={(e) => setProgramaId(e.target.value)}><option value="">Todos los programas</option>{programs.map((program) => <option key={program.id} value={program.id}>{program.nombre}</option>)}</select></label><label>Estado<select value={estado} onChange={(e) => setEstado(e.target.value)}><option value="">Todos</option>{enums.EstadoEstudiante.map((item) => <option key={item}>{item}</option>)}</select></label><button className="button button-primary">Buscar estudiantes</button></form>{error && <div className="notice notice-error">{error}</div>}<StudentTable rows={rows} loading={loading} onSelect={openProfile} />{selected && <Modal title={`Ficha de ${selected.perfil.nombre} ${selected.perfil.apellido}`} onClose={() => setSelected(null)}><div className="profile-tabs"><h4>Perfil académico</h4><dl className="detail-list">{Object.entries(selected.perfil).map(([key, value]) => <div key={key}><dt>{humanize(key)}</dt><dd>{displayValue(value)}</dd></div>)}</dl><h4>Perfil sociodemográfico</h4><dl className="detail-list">{Object.entries(selected.social || {}).map(([key, value]) => <div key={key}><dt>{humanize(key)}</dt><dd>{displayValue(value)}</dd></div>)}</dl><h4>Trayectoria del plan ({selected.trayectoria.length})</h4><div className="compact-list">{selected.trayectoria.map((item) => <div key={item.planAsignaturaId}><span>{item.nombre}</span><span className={`status-pill ${statusClass(item.estado)}`}>{item.estado}</span></div>)}</div><h4>Historial de matrículas ({selected.historial.length})</h4><div className="compact-list">{selected.historial.map((item) => <div key={item.matriculaId}><span>{item.codigoPeriodo} · {item.asignatura} · {displayValue(item.notaFinal)}</span><span className={`status-pill ${statusClass(item.estado)}`}>{item.estado}</span></div>)}</div><h4>Actividades ({selected.actividades.length})</h4><div className="compact-list">{selected.actividades.map((item, index) => <div key={item.id || index}><span>{item.nombre}</span><span>{item.categoria}</span></div>)}</div></div></Modal>}</div>
 }
 
 function StudentTable({ rows, loading, onSelect }) {
   return <section className="panel table-panel"><div className="table-scroll"><table><thead><tr><th>Código</th><th>Estudiante</th><th>Programa</th><th>Estado</th><th></th></tr></thead><tbody>{loading ? <tr><td colSpan="5" className="table-empty">Buscando…</td></tr> : rows.length === 0 ? <tr><td colSpan="5" className="table-empty">No hay estudiantes para mostrar.</td></tr> : rows.map((row) => <tr key={row.id}><td>{row.codigoEstudiantil}</td><td>{row.nombre} {row.apellido}</td><td>{row.programa}</td><td><span className={`status-pill ${statusClass(row.estado)}`}>{row.estado}</span></td><td><button className="table-action" onClick={() => onSelect(row)}>Ver ficha →</button></td></tr>)}</tbody></table></div></section>
 }
 
-function ReportPage({ title, path, filters, onNotice }) {
+function ReportPage({ title, path, csvPath, filters, onNotice }) {
   const [values, setValues] = useState({})
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -561,7 +613,13 @@ function ReportPage({ title, path, filters, onNotice }) {
     catch (error) { onNotice(errorMessage(error), 'error') }
     finally { setLoading(false) }
   }
-  return <div className="page-content"><div className="section-heading"><div><span className="eyebrow">REPORTES</span><h2>{title}</h2><p>Consulta indicadores agregados con filtros opcionales.</p></div></div>{filterError && <div className="notice notice-error">{filterError}</div>}<form className="panel filter-panel" onSubmit={run}>{filters.map((field) => <label key={field.name}>{field.label}{field.type === 'enum' ? <select value={values[field.name] || ''} onChange={(e) => setValues({ ...values, [field.name]: e.target.value })}><option value="">Todos</option>{enums[field.enum].map((item) => <option key={item}>{item}</option>)}</select> : field.optionsPath ? <select value={values[field.name] || ''} onChange={(e) => setValues({ ...values, [field.name]: e.target.value })}><option value="">Todos</option>{(filterOptions[field.name] || []).map((option) => <option value={option.id} key={option.id}>{option.nombre}</option>)}</select> : <input type="number" value={values[field.name] || ''} onChange={(e) => setValues({ ...values, [field.name]: e.target.value })} />}</label>)}<button className="button button-primary" disabled={loading}>{loading ? 'Generando…' : 'Generar reporte'}</button></form>{result && <section className="panel report-result"><div className="panel-heading"><div><span className="eyebrow">RESULTADO</span><h3>{title}</h3></div><button className="text-button" onClick={() => navigator.clipboard?.writeText(JSON.stringify(result, null, 2))}>Copiar JSON</button></div><JsonView value={result} /></section>}</div>
+  async function downloadCsv() {
+    const params = new URLSearchParams()
+    Object.entries(values).forEach(([key, value]) => { if (value !== '' && value != null) params.set(key, value) })
+    try { await api.download(`${csvPath}?${params}`, `${title.toLocaleLowerCase().replaceAll(' ', '-')}.csv`); onNotice('CSV descargado correctamente.', 'success') }
+    catch (error) { onNotice(errorMessage(error), 'error') }
+  }
+  return <div className="page-content"><div className="section-heading"><div><span className="eyebrow">REPORTES</span><h2>{title}</h2><p>Consulta indicadores agregados con filtros opcionales.</p></div></div>{filterError && <div className="notice notice-error">{filterError}</div>}<form className="panel filter-panel" onSubmit={run}>{filters.map((field) => <label key={field.name}>{field.label}{field.type === 'enum' ? <select value={values[field.name] || ''} onChange={(e) => setValues({ ...values, [field.name]: e.target.value })}><option value="">Todos</option>{enums[field.enum].map((item) => <option key={item}>{item}</option>)}</select> : field.optionsPath ? <select value={values[field.name] || ''} onChange={(e) => setValues({ ...values, [field.name]: e.target.value })}><option value="">Todos</option>{(filterOptions[field.name] || []).map((option) => <option value={option.id} key={option.id}>{option.nombre || option.codigo}</option>)}</select> : <input type="number" value={values[field.name] || ''} onChange={(e) => setValues({ ...values, [field.name]: e.target.value })} />}</label>)}<button className="button button-primary" disabled={loading}>{loading ? 'Generando…' : 'Generar reporte'}</button><button type="button" className="button button-soft" disabled={loading} onClick={downloadCsv}>Descargar CSV</button></form>{result && <section className="panel report-result"><div className="panel-heading"><div><span className="eyebrow">RESULTADO</span><h3>{title}</h3></div><button className="text-button" onClick={() => navigator.clipboard?.writeText(JSON.stringify(result, null, 2))}>Copiar JSON</button></div><JsonView value={result} /></section>}</div>
 }
 
 function JsonView({ value }) {
@@ -585,7 +643,10 @@ const reportRequestFilters = [
   { name: 'programaId', label: 'Programa', optionsPath: '/api/admin/programas' },
   { name: 'periodoId', label: 'Periodo', optionsPath: '/api/admin/periodos' },
 ]
-const programFilter = [{ name: 'programaId', label: 'Programa', optionsPath: '/api/admin/programas' }]
+const programFilter = [
+  { name: 'programaId', label: 'Programa', optionsPath: '/api/admin/programas' },
+  { name: 'periodoId', label: 'Periodo', optionsPath: '/api/admin/periodos' },
+]
 const studentActivities = {
   title: 'Mis actividades', singular: 'actividad', groupLabel: 'MI ESPACIO',
   description: 'Registra y consulta tus actividades integrales. Los datos se asocian automáticamente a tu usuario.',
@@ -661,7 +722,7 @@ function App() {
     if (active === 'auditoria') content = <AuditPage onNotice={showNotice} />
     else if (active === 'usuarios') content = <UserManagement onNotice={showNotice} />
     else if (active === 'perfil-admin') content = <AdminSocioProfile onNotice={showNotice} />
-    else if (resource) content = <ResourcePage resource={resource} onNotice={showNotice} />
+    else if (resource) content = <ResourcePage key={active} resource={resource} onNotice={showNotice} />
   } else if (role === 'ESTUDIANTE') content = <StudentSpace page={active} onNotice={showNotice} />
   else if (role === 'DOCENTE') content = <TeacherSpace page={active} onNotice={showNotice} />
 
@@ -675,6 +736,7 @@ function AuditPage({ onNotice }) {
   const [filters, setFilters] = useState({ entidad: '', registroId: '', usuarioId: '', page: '0', size: '50' })
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [selected, setSelected] = useState(null)
   const search = useCallback(async (event) => {
     if (event) { event.preventDefault(); setLoading(true) }
     const params = new URLSearchParams()
@@ -685,7 +747,26 @@ function AuditPage({ onNotice }) {
   }, [filters, onNotice])
   useEffect(() => { void Promise.resolve().then(search) }, [search])
   const rows = result?.content || []
-  return <div className="page-content"><div className="section-heading"><div><span className="eyebrow">ADMINISTRACIÓN · TRAZABILIDAD</span><h2>Auditoría del sistema</h2><p>Consulta quién modificó qué registro y revisa los valores anteriores y nuevos.</p></div></div><form className="panel filter-panel" onSubmit={search}><label>Entidad<input value={filters.entidad} onChange={(e) => setFilters({ ...filters, entidad: e.target.value })} placeholder="usuario, estudiante…" /></label><label>ID de registro<input value={filters.registroId} onChange={(e) => setFilters({ ...filters, registroId: e.target.value })} /></label><label>ID de usuario<input type="number" value={filters.usuarioId} onChange={(e) => setFilters({ ...filters, usuarioId: e.target.value })} /></label><label>Página<input type="number" min="0" value={filters.page} onChange={(e) => setFilters({ ...filters, page: e.target.value })} /></label><label>Tamaño<input type="number" min="1" max="100" value={filters.size} onChange={(e) => setFilters({ ...filters, size: e.target.value })} /></label><button className="button button-primary" disabled={loading}>{loading ? 'Consultando…' : 'Filtrar auditoría'}</button></form><section className="panel table-panel"><div className="table-scroll"><table><thead><tr><th>Fecha</th><th>Usuario actor</th><th>Entidad</th><th>ID registro</th><th>Operación</th><th>Antes</th><th>Después</th></tr></thead><tbody>{loading ? <tr><td colSpan="7" className="table-empty">Consultando auditoría…</td></tr> : rows.length === 0 ? <tr><td colSpan="7" className="table-empty">No hay cambios para los filtros seleccionados.</td></tr> : rows.map((row) => <tr key={row.id}><td>{displayValue(row.fecha)}</td><td>{displayValue(row.usuarioId)}</td><td>{displayValue(row.entidad)}</td><td>{displayValue(row.registroId)}</td><td>{displayValue(row.operacion)}</td><td>{displayValue(row.valoresAnteriores)}</td><td>{displayValue(row.valoresNuevos)}</td></tr>)}</tbody></table></div><div className="table-foot"><span>{result?.totalElements ?? 0} registros · página {Number(result?.number ?? 0) + 1} de {result?.totalPages ?? 0}</span><button className="text-button" onClick={search}>Actualizar ↻</button></div></section></div>
+  const snapshotKeys = selected ? [...new Set([...Object.keys(asObject(selected.valoresAnteriores)), ...Object.keys(asObject(selected.valoresNuevos))])] : []
+  return <div className="page-content"><div className="section-heading"><div><span className="eyebrow">ADMINISTRACIÓN · TRAZABILIDAD</span><h2>Auditoría del sistema</h2><p>Consulta cada cambio y abre su detalle para comparar los valores anteriores y nuevos.</p></div></div><form className="panel filter-panel" onSubmit={search}><label>Entidad<input value={filters.entidad} onChange={(e) => setFilters({ ...filters, entidad: e.target.value })} placeholder="usuario, estudiante…" /></label><label>ID de registro<input value={filters.registroId} onChange={(e) => setFilters({ ...filters, registroId: e.target.value })} /></label><label>ID de usuario<input type="number" value={filters.usuarioId} onChange={(e) => setFilters({ ...filters, usuarioId: e.target.value })} /></label><label>Página<input type="number" min="0" value={filters.page} onChange={(e) => setFilters({ ...filters, page: e.target.value })} /></label><label>Tamaño<input type="number" min="1" max="100" value={filters.size} onChange={(e) => setFilters({ ...filters, size: e.target.value })} /></label><button className="button button-primary" disabled={loading}>{loading ? 'Consultando…' : 'Filtrar auditoría'}</button></form><section className="panel table-panel"><div className="table-scroll"><table><thead><tr><th>Fecha</th><th>Usuario actor</th><th>Entidad</th><th>ID registro</th><th>Operación</th><th>Cambios</th></tr></thead><tbody>{loading ? <tr><td colSpan="6" className="table-empty">Consultando auditoría…</td></tr> : rows.length === 0 ? <tr><td colSpan="6" className="table-empty">No hay cambios para los filtros seleccionados.</td></tr> : rows.map((row) => <tr key={row.id}><td>{formatDateTime(row.fecha)}</td><td>{displayValue(row.usuarioId)}</td><td>{displayValue(row.entidad)}</td><td>{displayValue(row.registroId)}</td><td><span className={`status-pill ${row.operacion === 'INSERT' ? 'status-positive' : row.operacion === 'DELETE' ? 'status-negative' : 'status-neutral'}`}>{row.operacion}</span></td><td><button className="table-action" onClick={() => setSelected(row)}>Ver cambios</button></td></tr>)}</tbody></table></div><div className="table-foot"><span>{result?.totalElements ?? 0} registros · página {Number(result?.number ?? 0) + 1} de {result?.totalPages ?? 0}</span><button className="text-button" onClick={search}>Actualizar ↻</button></div></section>{selected && <Modal wide title={`Cambio en ${selected.entidad} · registro ${selected.registroId}`} onClose={() => setSelected(null)}><div className="audit-meta"><span><strong>Fecha:</strong> {formatDateTime(selected.fecha)}</span><span><strong>Usuario actor:</strong> {displayValue(selected.usuarioId)}</span><span><strong>Operación:</strong> {selected.operacion}</span></div><div className="table-scroll audit-diff-scroll"><table className="audit-diff"><thead><tr><th>Campo</th><th>Antes</th><th>Después</th></tr></thead><tbody>{snapshotKeys.length ? snapshotKeys.map((key) => <tr key={key}><th>{humanize(key)}</th><td><AuditValue value={asObject(selected.valoresAnteriores)[key]} /></td><td><AuditValue value={asObject(selected.valoresNuevos)[key]} /></td></tr>) : <tr><td colSpan="3" className="table-empty">Este cambio no tiene snapshots anteriores ni nuevos.</td></tr>}</tbody></table></div><div className="modal-actions"><button className="button button-soft" onClick={() => setSelected(null)}>Cerrar</button></div></Modal>}</div>
+}
+
+function asObject(value) {
+  if (value == null) return {}
+  if (typeof value === 'object' && !Array.isArray(value)) return value
+  return { valor: value }
+}
+
+function AuditValue({ value }) {
+  if (value === undefined || value === null) return <span className="muted">—</span>
+  const text = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
+  return <pre className="audit-value">{text}</pre>
+}
+
+function formatDateTime(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'medium' }).format(date)
 }
 
 function AdminSocioProfile({ onNotice }) {

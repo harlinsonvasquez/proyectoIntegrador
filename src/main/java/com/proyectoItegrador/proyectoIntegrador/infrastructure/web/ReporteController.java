@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import java.util.ArrayList;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/reportes")
@@ -29,5 +32,21 @@ public class ReporteController {
             @RequestParam(required = false) Long programaId,
             @RequestParam(required = false) Long periodoId) {
         return service.solicitudes(actor, estado, programaId, periodoId);
+    }
+
+    @GetMapping(value = "/solicitudes/csv", produces = "text/csv")
+    @Operation(summary = "Exportar reporte de solicitudes a CSV")
+    public ResponseEntity<byte[]> exportarSolicitudes(@AuthenticationPrincipal AuthenticatedUser actor,
+            @RequestParam(required = false) EstadoSolicitud estado,
+            @RequestParam(required = false) Long programaId,
+            @RequestParam(required = false) Long periodoId) {
+        var reporte = service.solicitudes(actor, estado, programaId, periodoId);
+        List<List<String>> rows = new ArrayList<>();
+        rows.add(List.of("dimension", "valor", "cantidad"));
+        rows.add(List.of("total", "solicitudes", String.valueOf(reporte.total())));
+        reporte.porEstado().forEach((key, value) -> rows.add(List.of("estado", key, String.valueOf(value))));
+        reporte.porPeriodo().forEach((key, value) -> rows.add(List.of("periodo", key, String.valueOf(value))));
+        reporte.porPrograma().forEach((key, value) -> rows.add(List.of("programa", key, String.valueOf(value))));
+        return CsvReportWriter.attachment("reporte-solicitudes.csv", rows);
     }
 }

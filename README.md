@@ -29,8 +29,9 @@ la base o las credenciales cambian, puedes sobrescribirlos con `DB_NAME`,
 
 La aplicación apunta a PostgreSQL y al esquema `gestion_estudiantil`. Hibernate
 usa `ddl-auto=validate`: valida el mapeo al iniciar, pero no crea ni altera
-tablas. Flyway está desactivado porque la base ya existe y no se proporcionaron
-migraciones versionadas para adoptarla.
+tablas. Flyway permanece desactivado porque la base ya existe y el equipo
+administra el esquema manualmente. El archivo `V1__crear_esquema_inicial.sql`
+documenta el esquema esperado, pero no se ejecuta al iniciar la aplicación.
 
 ## Autenticación y Firebase Realtime Database
 
@@ -71,6 +72,13 @@ indicador `leida`. Las tablas relacionales siguen siendo la fuente oficial para
 solicitudes, historial y reportes; los nodos existentes `cursos` y `matriculas`
 no se duplican ni se modifican con este flujo.
 
+El diagrama, diccionario y justificación de normalización están en
+[`docs/modelo-datos-y-normalizacion.md`](docs/modelo-datos-y-normalizacion.md).
+El respaldo periódico y los procedimientos de restauración/verificación se
+documentan en [`docs/respaldos-y-recuperacion.md`](docs/respaldos-y-recuperacion.md).
+Los scripts de PostgreSQL se encuentran en `scripts/`; la verificación restaura
+en una base temporal y no reemplaza `gestion_estudiantil`.
+
 Para permitir llamadas desde el frontend, el backend acepta por defecto
 `http://localhost:5173`. En despliegue configura `CORS_ALLOWED_ORIGINS` con el
 origen exacto de Vercel; se permiten varios orígenes separados por comas.
@@ -95,8 +103,12 @@ de cada endpoint, sus parámetros y los esquemas de solicitud/respuesta.
 | `GET` | `/api/estudiantes/me` | Consultar perfil propio |
 | `PUT` | `/api/estudiantes/me/datos-personales` | Actualizar nombre y apellido propios |
 | `GET` | `/api/estudiantes/me/trayectoria` | Ver materias del plan, estado e información de prerrequisitos |
+| `GET` | `/api/estudiantes/me/trayectoria/historial` | Ver todos los intentos de matrícula, incluidas repeticiones por periodo |
+| `GET` | `/api/estudiantes/periodos` | Listar periodos configurados para las consultas curriculares |
+| `GET` | `/api/estudiantes/me/ofertas?periodoId=` | Consultar ofertas del periodo, prerrequisitos, cupo y elegibilidad |
 | `GET` | `/api/estudiantes/{id}/perfil` | Consulta docente de perfil |
 | `GET` | `/api/estudiantes/{id}/trayectoria` | Consulta docente de trayectoria |
+| `GET` | `/api/estudiantes/{id}/trayectoria/historial` | Consulta docente de todos los intentos por asignatura |
 | `GET` | `/api/docente/estudiantes?q=&programaId=&estado=` | Buscar estudiantes por datos básicos |
 | `GET` | `/api/estudiantes/me/actividades` | Consultar actividades propias |
 | `POST` | `/api/estudiantes/me/actividades` | Registrar actividad integral |
@@ -108,8 +120,11 @@ de cada endpoint, sus parámetros y los esquemas de solicitud/respuesta.
 | `GET` | `/api/docente/solicitudes?estado=PENDIENTE` | Consultar bandeja docente |
 | `PATCH` | `/api/docente/solicitudes/{id}` | Avanzar el estado y registrar observación |
 | `GET` | `/api/reportes/solicitudes?programaId=&periodoId=&estado=` | Resumen filtrable de solicitudes |
-| `GET` | `/api/reportes/desempeno?programaId=` | Indicadores agregados de notas y estados académicos |
-| `GET` | `/api/reportes/participacion?programaId=` | Conteo por categoría de actividad integral |
+| `GET` | `/api/reportes/desempeno?programaId=&periodoId=` | Indicadores agregados de notas y estados académicos |
+| `GET` | `/api/reportes/participacion?programaId=&periodoId=` | Conteo por categoría; el periodo se deriva del rango de fechas de actividad |
+| `GET` | `/api/reportes/solicitudes/csv?estado=&programaId=&periodoId=` | Exportar el reporte de solicitudes como CSV UTF-8 |
+| `GET` | `/api/reportes/desempeno/csv?programaId=&periodoId=` | Exportar el reporte de desempeño como CSV UTF-8 |
+| `GET` | `/api/reportes/participacion/csv?programaId=&periodoId=` | Exportar el reporte de participación como CSV UTF-8 |
 | `GET` | `/api/notificaciones` | Consultar las últimas 50 notificaciones propias (Realtime Database activo) |
 | `PATCH` | `/api/notificaciones/{id}/leida` | Marcar una notificación propia como leída |
 
@@ -179,11 +194,24 @@ admitidos son `ESTUDIANTE`, `DOCENTE` y `ADMINISTRADOR`.
 Al aprobar una cancelación, el servicio actualiza la matrícula, registra el
 seguimiento y la auditoría en la misma operación y agrega un evento a
 `outbox_evento`. Con Firebase activo, el proceso programado publica ese evento
-en `estudiantes/{codigoEstudiantil}/notificaciones/{eventoId}` en Realtime Database y lo marca procesado. La disponibilidad de materias
-se calcula con el plan activo y prerrequisitos aprobados; aún no valida cupos ni
-fechas institucionales de cancelación porque esas reglas no están en el enunciado.
+en `estudiantes/{codigoEstudiantil}/notificaciones/{eventoId}` en Realtime Database
+y lo marca procesado. Las ofertas curriculares se consultan por periodo y evalúan
+plan activo, prerrequisitos y cupo, pero no matriculan al estudiante ni aplican
+ventanas de inscripción, porque el esquema actual no define ese calendario.
 
 ## Pruebas
+
+Las pruebas unitarias de historial académico, ofertas/cupos, reglas de solicitudes,
+filtros de periodo y exportación CSV se pueden ejecutar sin iniciar servicios
+externos:
+
+```powershell
+.\mvnw.cmd '-Dtest=CsvReportWriterTest,ConsultaAcademicaServiceTest,ReporteAcademicoServiceTest,SolicitudApplicationServiceTest' test
+```
+
+La prueba `ProyectoIntegradorApplicationTests` carga el contexto completo y
+requiere PostgreSQL, el esquema compatible y Firebase configurado. No la ejecutes
+para verificar las reglas unitarias anteriores.
 
 ```powershell
 .\mvnw.cmd test

@@ -11,4 +11,8 @@ public interface ConsultaAcademicaPort {
     List<PlanEstudioEntity> planesActivos(Long programaId);
     List<PlanAsignaturaEntity> asignaturasDelPlan(Long planEstudioId);
     List<PrerrequisitoEntity> prerrequisitos(Long planAsignaturaId);
+    Optional<PeriodoAcademicoEntity> periodo(Long periodoId);
+    List<PeriodoAcademicoEntity> periodos();
+    List<OfertaAsignaturaEntity> ofertasDelProgramaEnPeriodo(Long programaId, Long periodoId);
+    long matriculasActivasEnOferta(Long ofertaId);
 }

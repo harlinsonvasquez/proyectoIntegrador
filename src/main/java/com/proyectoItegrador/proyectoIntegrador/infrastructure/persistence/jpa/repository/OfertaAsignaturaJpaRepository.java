@@ -6,4 +6,6 @@ import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.e
 
 public interface OfertaAsignaturaJpaRepository extends JpaRepository<OfertaAsignaturaEntity, Long> {
     List<OfertaAsignaturaEntity> findAllByPeriodo_Id(Long periodoId);
+    List<OfertaAsignaturaEntity> findAllByPeriodo_IdAndPlanAsignatura_PlanEstudio_Programa_IdAndPlanAsignatura_PlanEstudio_ActivoTrue(
+            Long periodoId, Long programaId);
 }

@@ -40,6 +40,29 @@ export const api = {
     }
     return result
   },
+  async download(path, filename) {
+    const token = tokenProvider ? await tokenProvider() : null
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
+    let response
+    try {
+      response = await fetch(`${baseUrl}${path}`, { headers })
+    } catch {
+      throw new ApiError(0, `No fue posible conectar con la API (${baseUrl}).`, null)
+    }
+    if (!response.ok) {
+      const result = await response.text().catch(() => '')
+      throw new ApiError(response.status, result || `Error HTTP ${response.status}`, result)
+    }
+    const blob = await response.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(objectUrl)
+  },
   get(path) { return this.request('GET', path) },
   post(path, body) { return this.request('POST', path, body) },
   put(path, body) { return this.request('PUT', path, body) },

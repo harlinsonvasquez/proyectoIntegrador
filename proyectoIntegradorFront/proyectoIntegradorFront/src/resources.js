@@ -47,15 +47,15 @@ const planSubjectFields = [
   boolField('obligatoria'),
 ]
 const prerequisiteFields = [
-  idField('planAsignaturaId', 'Asignatura del plan', '/api/admin/plan-asignaturas'),
-  idField('prerrequisitoPlanAsignaturaId', 'Prerrequisito del plan', '/api/admin/plan-asignaturas'),
+  idField('planAsignaturaId', 'Asignatura del plan', '/api/admin/plan-asignaturas', (item) => `${item.asignaturaCodigo} · ${item.asignaturaNombre} (${item.planCodigo})`),
+  idField('prerrequisitoPlanAsignaturaId', 'Prerrequisito del plan', '/api/admin/plan-asignaturas', (item) => `${item.asignaturaCodigo} · ${item.asignaturaNombre} (${item.planCodigo})`),
 ]
 const periodFields = [
   textField('codigo', 'Código'), textField('nombre', 'Nombre'),
   dateField('fechaInicio', 'Fecha de inicio'), dateField('fechaFin', 'Fecha de finalización'),
 ]
 const offerFields = [
-  idField('planAsignaturaId', 'Asignatura del plan', '/api/admin/plan-asignaturas'),
+  idField('planAsignaturaId', 'Asignatura del plan', '/api/admin/plan-asignaturas', (item) => `${item.asignaturaCodigo} · ${item.asignaturaNombre} (${item.planCodigo})`),
   idField('periodoId', 'Periodo', '/api/admin/periodos', (item) => `${item.codigo} · ${item.nombre}`),
   textField('grupo', 'Grupo'), numberField('cupo', 'Cupo', { min: 1, required: false }),
   idField('docenteId', 'Docente (opcional)', '/api/admin/docentes', (item) => `${item.nombre} ${item.apellido}`, { required: false }),
@@ -71,7 +71,7 @@ const activityFields = [
 ]
 const matriculaFields = [
   idField('estudianteId', 'Estudiante', '/api/admin/estudiantes', (item) => `${item.codigoEstudiantil} · ${item.nombre} ${item.apellido}`),
-  idField('ofertaAsignaturaId', 'Oferta académica', '/api/admin/ofertas'),
+  idField('ofertaAsignaturaId', 'Oferta académica', '/api/admin/ofertas', (item) => `${item.asignaturaCodigo} · ${item.asignaturaNombre} · ${item.codigoPeriodo} · Grupo ${item.grupo}`),
   enumField('estado', 'Estado de matrícula', 'EstadoMatricula'),
   numberField('notaFinal', 'Nota final', { min: 0, max: 5, step: 0.01, required: false }),
 ]
@@ -89,12 +89,25 @@ const programas = adminResource('programas', 'Programas', 'Organiza los programa
 })
 const planes = adminResource('planes-estudio', 'Planes de estudio', 'Define las versiones curriculares asociadas a un programa.', planFields, {
   icon: 'books', singular: 'plan de estudio', deleteSuccess: 'Plan desactivado; se conserva el historial.',
+  columns: [
+    { key: 'codigo', label: 'Código' }, { key: 'nombre', label: 'Plan de estudio' },
+    { key: 'programaCodigo', label: 'Código programa' }, { key: 'programaNombre', label: 'Programa' },
+    { key: 'version', label: 'Versión' }, { key: 'activo', label: 'Estado', render: (row) => row.activo ? 'Activo' : 'Inactivo' },
+  ],
 })
 const asignaturas = adminResource('asignaturas', 'Asignaturas', 'Administra el catálogo de asignaturas. La baja es lógica.', subjectFields, {
   icon: 'books', singular: 'asignatura', deleteSuccess: 'Asignatura desactivada; se conserva el historial.',
 })
 const planAsignaturas = adminResource('plan-asignaturas', 'Asignaturas del plan', 'Asocia asignaturas a planes y define semestre sugerido y obligatoriedad.', planSubjectFields, {
   icon: 'academic', singular: 'asignatura del plan',
+  columns: [
+    { key: 'planCodigo', label: 'Código del plan' },
+    { key: 'planNombre', label: 'Plan de estudio' },
+    { key: 'asignaturaCodigo', label: 'Código de asignatura' },
+    { key: 'asignaturaNombre', label: 'Asignatura' },
+    { key: 'semestreSugerido', label: 'Semestre sugerido' },
+    { key: 'obligatoria', label: 'Obligatoria', render: (row) => row.obligatoria ? 'Sí' : 'No' },
+  ],
 })
 const prerrequisitos = adminResource('prerrequisitos', 'Prerrequisitos', 'Define dependencias curriculares entre asignaturas del plan.', prerequisiteFields, {
   icon: 'academic', singular: 'prerrequisito',
@@ -104,8 +117,10 @@ const prerrequisitos = adminResource('prerrequisitos', 'Prerrequisitos', 'Define
   deletePath: (row) => `/api/admin/prerrequisitos/${row.planAsignaturaId}/${row.prerrequisitoPlanAsignaturaId}`,
   rowKey: (row) => `${row.planAsignaturaId}-${row.prerrequisitoPlanAsignaturaId}`,
   columns: [
-    { key: 'planAsignaturaId', label: 'Asignatura del plan' },
-    { key: 'prerrequisitoPlanAsignaturaId', label: 'Prerrequisito' },
+    { key: 'asignaturaCodigo', label: 'Código asignatura' },
+    { key: 'asignaturaNombre', label: 'Asignatura' },
+    { key: 'prerrequisitoCodigo', label: 'Código prerrequisito' },
+    { key: 'prerrequisitoNombre', label: 'Prerrequisito' },
   ],
 })
 const periodos = adminResource('periodos', 'Periodos académicos', 'Configura periodos y sus fechas de inicio y finalización.', periodFields, {
@@ -113,6 +128,15 @@ const periodos = adminResource('periodos', 'Periodos académicos', 'Configura pe
 })
 const ofertas = adminResource('ofertas', 'Ofertas académicas', 'Programa asignaturas por periodo, grupo, cupo y docente.', offerFields, {
   icon: 'calendar', singular: 'oferta',
+  columns: [
+    { key: 'asignaturaCodigo', label: 'Código' },
+    { key: 'asignaturaNombre', label: 'Asignatura' },
+    { key: 'codigoPeriodo', label: 'Código periodo' },
+    { key: 'periodo', label: 'Periodo' },
+    { key: 'grupo', label: 'Grupo' },
+    { key: 'cupo', label: 'Cupo' },
+    { key: 'nombreDocente', label: 'Docente', render: (row) => row.nombreDocente ? `${row.nombreDocente} ${row.apellidoDocente}` : 'Sin asignar' },
+  ],
 })
 const estudiantes = adminResource('estudiantes', 'Estudiantes', 'Crea cuentas en Firebase Authentication y sus perfiles locales. El correo se verifica desde Firebase.', [
   textField('correo', 'Correo electrónico', { type: 'email' }),
@@ -151,6 +175,16 @@ const docentes = adminResource('docentes', 'Docentes', 'Crea cuentas en Firebase
 })
 const matriculas = adminResource('matriculas', 'Matrículas', 'Registra y actualiza matrículas. Las cancelaciones deben tramitarse por solicitudes.', matriculaFields, {
   icon: 'academic', singular: 'matrícula', delete: false,
+  columns: [
+    { key: 'codigoEstudiantil', label: 'Código estudiante' },
+    { key: 'nombreEstudiante', label: 'Estudiante', render: (row) => `${row.nombreEstudiante || ''} ${row.apellidoEstudiante || ''}`.trim() || 'Sin nombre' },
+    { key: 'asignaturaCodigo', label: 'Código asignatura' },
+    { key: 'asignaturaNombre', label: 'Asignatura' },
+    { key: 'codigoPeriodo', label: 'Periodo' },
+    { key: 'grupo', label: 'Grupo' },
+    { key: 'estado', label: 'Estado de matrícula' },
+    { key: 'notaFinal', label: 'Nota final' },
+  ],
 })
 const actividades = {
   id: 'actividades-admin', label: 'Actividades estudiantiles', icon: 'activity',
@@ -162,7 +196,7 @@ const actividades = {
     updatePath: (row) => `/api/admin/actividades/${row.id}`,
     deletePath: (row) => `/api/admin/actividades/${row.id}`,
     fields: activityFields,
-    columns: [{ key: 'id', label: 'ID' }, { key: 'estudianteId', label: 'Estudiante' }, { key: 'categoria', label: 'Categoría' }, { key: 'nombre', label: 'Actividad' }, { key: 'fechaInicio', label: 'Inicio' }],
+    columns: [{ key: 'id', label: 'ID' }, { key: 'codigoEstudiantil', label: 'Código estudiante' }, { key: 'nombreEstudiante', label: 'Estudiante', render: (row) => `${row.nombreEstudiante || ''} ${row.apellidoEstudiante || ''}`.trim() || 'Sin nombre' }, { key: 'categoria', label: 'Categoría' }, { key: 'nombre', label: 'Actividad' }, { key: 'fechaInicio', label: 'Inicio' }],
   },
 }
 const actividadSelf = {
@@ -186,6 +220,8 @@ export const studentNav = [
   { label: 'MI VIDA ACADÉMICA', items: [
     { id: 'perfil', label: 'Mi perfil', icon: 'people' },
     { id: 'trayectoria', label: 'Mi trayectoria', icon: 'academic' },
+    { id: 'historial-academico', label: 'Historial académico', icon: 'books' },
+    { id: 'ofertas-academicas', label: 'Ofertas disponibles', icon: 'calendar' },
     { id: 'sociodemografico', label: 'Perfil sociodemográfico', icon: 'settings' },
   ] },
   { label: 'MI ACTIVIDAD', items: [
