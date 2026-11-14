@@ -8,6 +8,7 @@ public interface ConsultaAcademicaPort {
     Optional<EstudianteEntity> estudiante(Long id);
     Optional<EstudianteEntity> estudiantePorUsuario(Long userId);
     List<MatriculaAsignaturaEntity> matriculas(Long estudianteId);
+    MatriculaAsignaturaEntity crearMatricula(MatriculaAsignaturaEntity matricula);
     List<PlanEstudioEntity> planesActivos(Long programaId);
     List<PlanAsignaturaEntity> asignaturasDelPlan(Long planEstudioId);
     List<PrerrequisitoEntity> prerrequisitos(Long planAsignaturaId);

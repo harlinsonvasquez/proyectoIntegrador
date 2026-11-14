@@ -91,10 +91,17 @@ public class ConsultaAcademicaService {
         List<MatriculaAsignaturaEntity> intentos = persistence.matriculas(student.getId());
         Set<Long> aprobadas = new HashSet<>();
         Set<Long> ofertasYaRegistradas = new HashSet<>();
+        Set<Long> asignaturasEnCursoPeriodo = new HashSet<>();
         for (MatriculaAsignaturaEntity intento : intentos) {
             Long planAsignaturaId = intento.getOfertaAsignatura().getPlanAsignatura().getId();
             if (intento.getEstado() == EstadoMatricula.APROBADA) aprobadas.add(planAsignaturaId);
             ofertasYaRegistradas.add(intento.getOfertaAsignatura().getId());
+            if (intento.getOfertaAsignatura().getPeriodo().getId().equals(periodoId)
+                    && (intento.getEstado() == EstadoMatricula.MATRICULADA
+                            || intento.getEstado() == EstadoMatricula.CURSANDO
+                            || intento.getEstado() == EstadoMatricula.PENDIENTE)) {
+                asignaturasEnCursoPeriodo.add(planAsignaturaId);
+            }
         }
 
         return persistence.ofertasDelProgramaEnPeriodo(student.getPrograma().getId(), periodoId).stream()
@@ -109,7 +116,9 @@ public class ConsultaAcademicaService {
                     long ocupados = persistence.matriculasActivasEnOferta(oferta.getId());
                     Integer cupo = oferta.getCupo();
                     boolean tieneCupo = cupo == null || ocupados < cupo;
-                    boolean yaMatriculada = ofertasYaRegistradas.contains(oferta.getId());
+                    boolean yaMatriculada = ofertasYaRegistradas.contains(oferta.getId())
+                            || aprobadas.contains(planAsignatura.getId())
+                            || asignaturasEnCursoPeriodo.contains(planAsignatura.getId());
                     Integer disponibles = cupo == null ? null : (int) Math.max(0, cupo - ocupados);
                     return new OfertaDisponibleResponse(oferta.getId(), planAsignatura.getId(),
                             planAsignatura.getAsignatura().getCodigo(), planAsignatura.getAsignatura().getNombre(),

@@ -177,7 +177,7 @@ function Dashboard({ role, user, setActive }) {
           ['Solicitudes', '/api/reportes/solicitudes'],
         ]
       : role === 'DOCENTE'
-        ? [['Solicitudes pendientes', '/api/docente/solicitudes?estado=PENDIENTE'], ['Estudiantes', '/api/docente/estudiantes'], ['Programas', '/api/admin/programas']]
+        ? [['Solicitudes pendientes', '/api/docente/solicitudes?estado=PENDIENTE'], ['Estudiantes', '/api/docente/estudiantes'], ['Programas', '/api/docente/programas']]
         : [['Mi trayectoria', '/api/estudiantes/me/trayectoria'], ['Mis actividades', '/api/estudiantes/me/actividades'], ['Mis solicitudes', '/api/solicitudes/mias']]
     void Promise.resolve().then(() => {
       if (alive) setStats(endpoints.map(([label, path]) => ({ label, path, count: null, loading: true, ok: true })))
@@ -236,7 +236,7 @@ function FieldInput({ field, value, onChange, options }) {
   if (field.type === 'select') {
     return <select {...common}><option value="">Selecciona…</option>{(options || field.options || []).map((option) => <option key={String(option.value)} value={option.value}>{option.label}</option>)}</select>
   }
-  if (field.type === 'boolean') return <select {...common}><option value="true">Sí / Activo</option><option value="false">No / Inactivo</option></select>
+  if (field.type === 'boolean') return <select {...common}><option value="true">{field.trueLabel || 'Sí / Activo'}</option><option value="false">{field.falseLabel || 'No / Inactivo'}</option></select>
   if (field.type === 'textarea') return <textarea {...common} rows={3} placeholder={field.placeholder || ''} />
   if (field.type === 'enum') return <select {...common}><option value="">Selecciona…</option>{(enums[field.enum] || []).map((item) => <option key={item} value={item}>{item.replaceAll('_', ' ')}</option>)}</select>
   return <input {...common} type={fieldTypes[field.type] || 'text'} min={field.min} max={field.max} step={field.step} placeholder={field.placeholder || ''} />
@@ -406,7 +406,7 @@ function Modal({ title, children, onClose, wide = false }) {
 }
 
 function StudentSpace({ page, onNotice }) {
-  if (page === 'trayectoria') return <SimpleDataPage title="Mi trayectoria académica" group="MI ESPACIO" description="Consulta el avance en tu plan de estudios, tus matrículas y los requisitos de cada asignatura." path="/api/estudiantes/me/trayectoria" onNotice={onNotice} />
+  if (page === 'trayectoria') return <AcademicTrajectory />
   if (page === 'historial-academico') return <AcademicHistory onNotice={onNotice} />
   if (page === 'ofertas-academicas') return <AvailableOffers onNotice={onNotice} />
   if (page === 'perfil') return <SimpleDataPage title="Mi perfil" group="MI ESPACIO" description="Información del perfil de estudiante asociado a tu cuenta." path="/api/estudiantes/me" onNotice={onNotice} />
@@ -415,6 +415,46 @@ function StudentSpace({ page, onNotice }) {
   if (page === 'solicitudes') return <StudentRequests onNotice={onNotice} />
   if (page === 'notificaciones') return <Notifications onNotice={onNotice} />
   return null
+}
+
+function AcademicTrajectory() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try { setRows(await api.get('/api/estudiantes/me/trayectoria')) }
+    catch (err) { setRows([]); setError(errorMessage(err)) }
+    finally { setLoading(false) }
+  }, [])
+  useEffect(() => { void load() }, [load])
+
+  const orderedRows = [...rows].sort((a, b) => (a.semestreSugerido ?? 999) - (b.semestreSugerido ?? 999)
+    || String(a.codigo || '').localeCompare(String(b.codigo || '')))
+  const approved = rows.filter((row) => row.estadoMatricula === 'APROBADA').length
+  const blocked = rows.filter((row) => row.estado === 'PENDIENTE_PRERREQUISITOS').length
+
+  return <div className="page-content">
+    <div className="section-heading page-title-row"><div><span className="eyebrow">MI VIDA ACADÉMICA</span><h2>Mi trayectoria académica</h2><p>Consulta tu avance en el plan de estudios, las notas y los prerrequisitos de cada asignatura.</p></div><button className="button button-soft" onClick={load}>Actualizar ↻</button></div>
+    {error && <div className="notice notice-error">{error}</div>}
+    {!loading && !error && rows.length > 0 && <div className="stats-grid trajectory-stats"><article className="stat-card"><span className="stat-label">Asignaturas del plan</span><strong className="stat-value">{rows.length}</strong></article><article className="stat-card"><span className="stat-label">Aprobadas</span><strong className="stat-value">{approved}</strong></article><article className="stat-card"><span className="stat-label">Pendientes por prerrequisitos</span><strong className="stat-value">{blocked}</strong></article></div>}
+    <section className="panel table-panel"><div className="table-toolbar"><div><strong>Asignaturas de mi plan</strong><span>{rows.length} asignaturas</span></div></div><div className="table-scroll"><table><thead><tr><th>Semestre</th><th>Código</th><th>Asignatura</th><th>Créditos</th><th>Tipo</th><th>Estado</th><th>Nota final</th><th>Prerrequisitos</th></tr></thead><tbody>
+      {loading ? <tr><td colSpan="8" className="table-empty">Cargando trayectoria…</td></tr> : error ? <tr><td colSpan="8" className="table-empty">No fue posible cargar la trayectoria.</td></tr> : orderedRows.length === 0 ? <tr><td colSpan="8" className="table-empty">No hay asignaturas en un plan de estudio activo.</td></tr> : orderedRows.map((row) => {
+        const state = row.estadoMatricula || row.estado
+        const stateLabel = state === 'DISPONIBLE_POR_REQUISITOS' ? 'Disponible'
+          : state === 'PENDIENTE_PRERREQUISITOS' ? 'Prerrequisitos pendientes'
+            : String(state || 'Sin estado').replaceAll('_', ' ')
+        const stateTone = row.estadoMatricula === 'APROBADA' || state === 'DISPONIBLE_POR_REQUISITOS'
+          ? 'status-positive' : state === 'REPROBADA' || state === 'PENDIENTE_PRERREQUISITOS'
+            ? 'status-warning' : 'status-neutral'
+        const prerequisites = row.prerrequisitosPendientes?.length
+          ? `Pendientes: ${row.prerrequisitosPendientes.join(', ')}`
+          : row.prerrequisitosCumplidos ? 'Cumplidos' : 'Sin prerrequisitos'
+        return <tr key={row.planAsignaturaId}><td>{row.semestreSugerido ?? '—'}</td><td>{row.codigo}</td><td><strong>{row.nombre}</strong></td><td>{row.creditos ?? '—'}</td><td>{row.obligatoria ? 'Obligatoria' : 'Electiva'}</td><td><span className={`status-pill ${stateTone}`}>{stateLabel}</span></td><td>{row.nota == null ? '—' : Number(row.nota).toFixed(2)}</td><td>{prerequisites}</td></tr>
+      })}
+    </tbody></table></div></section>
+  </div>
 }
 
 function AcademicHistory({ onNotice }) {
@@ -451,7 +491,21 @@ function AvailableOffers({ onNotice }) {
     catch (err) { setError(errorMessage(err)); onNotice(errorMessage(err), 'error') }
     finally { setLoading(false) }
   }, [periodId, onNotice])
-  return <div className="page-content"><div className="section-heading"><div><span className="eyebrow">MI VIDA ACADÉMICA</span><h2>Ofertas disponibles</h2><p>Revisa las asignaturas ofertadas para tu plan, sus prerrequisitos y cupos. Esta consulta no crea una matrícula.</p></div></div><form className="panel filter-panel" onSubmit={load}><label>Periodo académico<select value={periodId} onChange={(event) => setPeriodId(event.target.value)} required><option value="">Selecciona un periodo…</option>{periods.map((period) => <option key={period.id} value={period.id}>{period.codigo} · {period.nombre}</option>)}</select></label><button className="button button-primary" disabled={initializing || loading || !periodId}>{loading ? 'Consultando…' : 'Consultar ofertas'}</button></form>{error && <div className="notice notice-error">{error}</div>}{!initializing && periods.length === 0 && <div className="notice notice-info">No hay periodos académicos disponibles.</div>}<section className="panel table-panel"><div className="table-toolbar"><div><strong>Asignaturas ofertadas</strong><span>{rows.length} ofertas</span></div></div><div className="table-scroll"><table><thead><tr><th>Asignatura</th><th>Grupo</th><th>Docente</th><th>Cupos</th><th>Prerrequisitos</th><th>Disponibilidad</th></tr></thead><tbody>{loading ? <tr><td colSpan="6" className="table-empty">Consultando ofertas…</td></tr> : rows.length ? rows.map((row) => <tr key={row.ofertaId}><td><strong>{row.codigoAsignatura}</strong><br />{row.asignatura}</td><td>{displayValue(row.grupo)}</td><td>{displayValue(row.docenteId)}</td><td>{row.cupo == null ? 'Sin límite' : `${row.cuposOcupados}/${row.cupo} · ${row.cuposDisponibles} libres`}</td><td>{row.prerrequisitosCumplidos ? 'Cumplidos' : (row.prerrequisitosPendientes || []).join(', ') || 'Pendientes'}</td><td><span className={`status-pill ${row.disponible ? 'status-positive' : 'status-negative'}`}>{row.disponible ? 'Disponible' : row.yaMatriculada ? 'Ya matriculada' : !row.prerrequisitosCumplidos ? 'Faltan prerrequisitos' : 'Sin cupos'}</span></td></tr>) : <tr><td colSpan="6" className="table-empty">Selecciona un periodo para ver sus ofertas.</td></tr>}</tbody></table></div></section></div>
+  async function enroll(row) {
+    try {
+      await api.post('/api/estudiantes/me/matriculas', { ofertaId: row.ofertaId, periodoId: Number(periodId) })
+      onNotice(`Te inscribiste en ${row.asignatura}.`, 'success')
+      await load()
+    } catch (err) { onNotice(errorMessage(err), 'error') }
+  }
+  return <div className="page-content">
+    <div className="section-heading"><div><span className="eyebrow">MI VIDA ACADÉMICA</span><h2>Ofertas disponibles</h2><p>Consulta e inscríbete en asignaturas de tu plan si cumples los prerrequisitos y hay cupo.</p></div></div>
+    <form className="panel filter-panel" onSubmit={load}><label>Periodo académico<select value={periodId} onChange={(event) => setPeriodId(event.target.value)} required><option value="">Selecciona un periodo…</option>{periods.map((period) => <option key={period.id} value={period.id}>{period.codigo} · {period.nombre}</option>)}</select></label><button className="button button-primary" disabled={initializing || loading || !periodId}>{loading ? 'Consultando…' : 'Consultar ofertas'}</button></form>
+    {error && <div className="notice notice-error">{error}</div>}{!initializing && periods.length === 0 && <div className="notice notice-info">No hay periodos académicos disponibles.</div>}
+    <section className="panel table-panel"><div className="table-toolbar"><div><strong>Asignaturas ofertadas</strong><span>{rows.length} ofertas</span></div></div><div className="table-scroll"><table><thead><tr><th>Asignatura</th><th>Grupo</th><th>Docente</th><th>Cupos</th><th>Prerrequisitos</th><th>Disponibilidad</th><th></th></tr></thead><tbody>
+      {loading ? <tr><td colSpan="7" className="table-empty">Consultando ofertas…</td></tr> : rows.length ? rows.map((row) => <tr key={row.ofertaId}><td><strong>{row.codigoAsignatura}</strong><br />{row.asignatura}</td><td>{displayValue(row.grupo)}</td><td>{displayValue(row.docenteId)}</td><td>{row.cupo == null ? 'Sin límite' : `${row.cuposOcupados}/${row.cupo} · ${row.cuposDisponibles} libres`}</td><td>{row.prerrequisitosCumplidos ? 'Cumplidos' : (row.prerrequisitosPendientes || []).join(', ') || 'Pendientes'}</td><td><span className={`status-pill ${row.disponible ? 'status-positive' : 'status-negative'}`}>{row.disponible ? 'Disponible' : row.yaMatriculada ? 'Ya matriculada' : !row.prerrequisitosCumplidos ? 'Faltan prerrequisitos' : 'Sin cupos'}</span></td><td><button className="table-action" disabled={!row.disponible || loading} onClick={() => enroll(row)}>{row.yaMatriculada ? 'Inscrito' : row.disponible ? 'Inscribirme' : 'No disponible'}</button></td></tr>) : <tr><td colSpan="7" className="table-empty">Selecciona un periodo para ver sus ofertas.</td></tr>}
+    </tbody></table></div></section>
+  </div>
 }
 
 function SimpleDataPage({ title, group, description, path, editPath, fields = [], onNotice }) {
@@ -514,6 +568,7 @@ function Notifications({ onNotice }) {
 }
 
 function TeacherSpace({ page, onNotice }) {
+  if (page === 'asignaturas-docente') return <TeacherCourses onNotice={onNotice} />
   if (page === 'solicitudes-docente') return <TeacherRequests onNotice={onNotice} />
   if (page === 'estudiantes-docente') return <TeacherStudents onNotice={onNotice} />
   if (page === 'reporte-solicitudes') return <ReportPage title="Reporte de solicitudes" path="/api/reportes/solicitudes" csvPath="/api/reportes/solicitudes/csv" filters={reportRequestFilters} onNotice={onNotice} />
@@ -557,19 +612,26 @@ function TeacherStudents({ onNotice }) {
   const [programaId, setProgramaId] = useState('')
   const [estado, setEstado] = useState('')
   const [programs, setPrograms] = useState([])
+  const [programsError, setProgramsError] = useState('')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState(null)
-  useEffect(() => { api.get('/api/admin/programas').then(setPrograms).catch((err) => setError(errorMessage(err))) }, [])
+  useEffect(() => {
+    api.get('/api/docente/programas')
+      .then(setPrograms)
+      .catch((err) => setProgramsError(errorMessage(err)))
+  }, [])
   const search = useCallback(async (event) => {
-    if (event) { event.preventDefault(); setLoading(true); setError('') }
+    if (event) event.preventDefault()
+    setLoading(true)
+    setError('')
     const params = new URLSearchParams()
     if (query.trim()) params.set('q', query.trim())
     if (programaId) params.set('programaId', programaId)
     if (estado) params.set('estado', estado)
     try { setRows(await api.get(`/api/docente/estudiantes?${params}`)) }
-    catch (err) { setError(errorMessage(err)) }
+    catch (err) { setRows([]); setError(errorMessage(err)) }
     finally { setLoading(false) }
   }, [estado, programaId, query])
   useEffect(() => { void Promise.resolve().then(search) }, [search])
@@ -585,11 +647,73 @@ function TeacherStudents({ onNotice }) {
       setSelected({ perfil, trayectoria, historial, actividades, social })
     } catch (err) { onNotice(errorMessage(err), 'error') }
   }
-  return <div className="page-content"><div className="section-heading"><div><span className="eyebrow">ESPACIO DOCENTE</span><h2>Estudiantes</h2><p>Encuentra estudiantes y consulta su información académica.</p></div></div><form className="filter-panel panel" onSubmit={search}><label>Buscar estudiante<input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nombre o código" /></label><label>Programa<select value={programaId} onChange={(e) => setProgramaId(e.target.value)}><option value="">Todos los programas</option>{programs.map((program) => <option key={program.id} value={program.id}>{program.nombre}</option>)}</select></label><label>Estado<select value={estado} onChange={(e) => setEstado(e.target.value)}><option value="">Todos</option>{enums.EstadoEstudiante.map((item) => <option key={item}>{item}</option>)}</select></label><button className="button button-primary">Buscar estudiantes</button></form>{error && <div className="notice notice-error">{error}</div>}<StudentTable rows={rows} loading={loading} onSelect={openProfile} />{selected && <Modal title={`Ficha de ${selected.perfil.nombre} ${selected.perfil.apellido}`} onClose={() => setSelected(null)}><div className="profile-tabs"><h4>Perfil académico</h4><dl className="detail-list">{Object.entries(selected.perfil).map(([key, value]) => <div key={key}><dt>{humanize(key)}</dt><dd>{displayValue(value)}</dd></div>)}</dl><h4>Perfil sociodemográfico</h4><dl className="detail-list">{Object.entries(selected.social || {}).map(([key, value]) => <div key={key}><dt>{humanize(key)}</dt><dd>{displayValue(value)}</dd></div>)}</dl><h4>Trayectoria del plan ({selected.trayectoria.length})</h4><div className="compact-list">{selected.trayectoria.map((item) => <div key={item.planAsignaturaId}><span>{item.nombre}</span><span className={`status-pill ${statusClass(item.estado)}`}>{item.estado}</span></div>)}</div><h4>Historial de matrículas ({selected.historial.length})</h4><div className="compact-list">{selected.historial.map((item) => <div key={item.matriculaId}><span>{item.codigoPeriodo} · {item.asignatura} · {displayValue(item.notaFinal)}</span><span className={`status-pill ${statusClass(item.estado)}`}>{item.estado}</span></div>)}</div><h4>Actividades ({selected.actividades.length})</h4><div className="compact-list">{selected.actividades.map((item, index) => <div key={item.id || index}><span>{item.nombre}</span><span>{item.categoria}</span></div>)}</div></div></Modal>}</div>
+  return <div className="page-content"><div className="section-heading"><div><span className="eyebrow">ESPACIO DOCENTE</span><h2>Estudiantes</h2><p>Encuentra estudiantes y consulta su información académica.</p></div></div><form className="filter-panel panel" onSubmit={search}><label>Buscar estudiante<input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nombre o código" /></label><label>Programa<select value={programaId} onChange={(e) => setProgramaId(e.target.value)}><option value="">Todos mis programas</option>{programs.length === 0 && <option disabled>Sin programas asignados</option>}{programs.map((program) => <option key={program.id} value={program.id}>{program.nombre}</option>)}</select></label><label>Estado<select value={estado} onChange={(e) => setEstado(e.target.value)}><option value="">Todos</option>{enums.EstadoEstudiante.map((item) => <option key={item}>{item}</option>)}</select></label><button className="button button-primary">Buscar estudiantes</button></form>{programsError && <div className="notice notice-error">No fue posible cargar los programas asignados: {programsError}</div>}{error && <div className="notice notice-error">{error}</div>}<StudentTable rows={rows} loading={loading} onSelect={openProfile} />{selected && <Modal title={`Ficha de ${selected.perfil.nombre} ${selected.perfil.apellido}`} onClose={() => setSelected(null)}><div className="profile-tabs"><h4>Perfil académico</h4><dl className="detail-list">{Object.entries(selected.perfil).map(([key, value]) => <div key={key}><dt>{humanize(key)}</dt><dd>{displayValue(value)}</dd></div>)}</dl><h4>Perfil sociodemográfico</h4><dl className="detail-list">{Object.entries(selected.social || {}).map(([key, value]) => <div key={key}><dt>{humanize(key)}</dt><dd>{displayValue(value)}</dd></div>)}</dl><h4>Trayectoria del plan ({selected.trayectoria.length})</h4><div className="compact-list">{selected.trayectoria.map((item) => <div key={item.planAsignaturaId}><span>{item.nombre}</span><span className={`status-pill ${statusClass(item.estado)}`}>{item.estado}</span></div>)}</div><h4>Historial de matrículas ({selected.historial.length})</h4><div className="compact-list">{selected.historial.map((item) => <div key={item.matriculaId}><span>{item.codigoPeriodo} · {item.asignatura} · {displayValue(item.notaFinal)}</span><span className={`status-pill ${statusClass(item.estado)}`}>{item.estado}</span></div>)}</div><h4>Actividades ({selected.actividades.length})</h4><div className="compact-list">{selected.actividades.map((item, index) => <div key={item.id || index}><span>{item.nombre}</span><span>{item.categoria}</span></div>)}</div></div></Modal>}</div>
 }
 
 function StudentTable({ rows, loading, onSelect }) {
-  return <section className="panel table-panel"><div className="table-scroll"><table><thead><tr><th>Código</th><th>Estudiante</th><th>Programa</th><th>Estado</th><th></th></tr></thead><tbody>{loading ? <tr><td colSpan="5" className="table-empty">Buscando…</td></tr> : rows.length === 0 ? <tr><td colSpan="5" className="table-empty">No hay estudiantes para mostrar.</td></tr> : rows.map((row) => <tr key={row.id}><td>{row.codigoEstudiantil}</td><td>{row.nombre} {row.apellido}</td><td>{row.programa}</td><td><span className={`status-pill ${statusClass(row.estado)}`}>{row.estado}</span></td><td><button className="table-action" onClick={() => onSelect(row)}>Ver ficha →</button></td></tr>)}</tbody></table></div></section>
+  return <section className="panel table-panel"><div className="table-scroll"><table><thead><tr><th>Código</th><th>Estudiante</th><th>Programa</th><th>Estado</th><th></th></tr></thead><tbody>{loading ? <tr><td colSpan="5" className="table-empty">Buscando…</td></tr> : rows.length === 0 ? <tr><td colSpan="5" className="table-empty">No hay estudiantes para mostrar.</td></tr> : rows.map((row) => <tr key={row.id}><td>{row.codigoEstudiantil}</td><td>{row.nombreCompleto || [row.nombre, row.apellido].filter(Boolean).join(' ')}</td><td>{row.programa}</td><td><span className={`status-pill ${statusClass(row.estado)}`}>{row.estado}</span></td><td><button className="table-action" onClick={() => onSelect(row)}>Ver ficha →</button></td></tr>)}</tbody></table></div></section>
+}
+
+function TeacherCourses({ onNotice }) {
+  const [offers, setOffers] = useState([])
+  const [selectedOffer, setSelectedOffer] = useState(null)
+  const [roster, setRoster] = useState([])
+  const [grades, setGrades] = useState({})
+  const [states, setStates] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [rosterLoading, setRosterLoading] = useState(false)
+  const [savingId, setSavingId] = useState(null)
+  const [error, setError] = useState('')
+
+  const loadOffers = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try { setOffers(await api.get('/api/docente/ofertas')) }
+    catch (err) { setError(errorMessage(err)); setOffers([]) }
+    finally { setLoading(false) }
+  }, [])
+  useEffect(() => { void loadOffers() }, [loadOffers])
+
+  async function openOffer(offer) {
+    setSelectedOffer(offer)
+    setRosterLoading(true)
+    setError('')
+    try {
+      const rows = await api.get(`/api/docente/ofertas/${offer.id}/matriculas`)
+      setRoster(rows)
+      setGrades(Object.fromEntries(rows.map((row) => [row.matriculaId, row.notaFinal ?? ''])))
+      setStates(Object.fromEntries(rows.map((row) => [row.matriculaId, row.estado])))
+    } catch (err) { setRoster([]); setError(errorMessage(err)) }
+    finally { setRosterLoading(false) }
+  }
+
+  async function saveGrade(row) {
+    setSavingId(row.matriculaId)
+    try {
+      const notaText = grades[row.matriculaId]
+      const updated = await api.patch(`/api/docente/matriculas/${row.matriculaId}/calificacion`, {
+        estado: states[row.matriculaId],
+        notaFinal: notaText === '' ? null : Number(notaText),
+      })
+      setRoster((current) => current.map((item) => item.matriculaId === updated.matriculaId ? updated : item))
+      setGrades((current) => ({ ...current, [updated.matriculaId]: updated.notaFinal ?? '' }))
+      setStates((current) => ({ ...current, [updated.matriculaId]: updated.estado }))
+      onNotice('Calificación y estado guardados.', 'success')
+      await loadOffers()
+    } catch (err) { onNotice(errorMessage(err), 'error') }
+    finally { setSavingId(null) }
+  }
+
+  return <div className="page-content">
+    <div className="section-heading page-title-row"><div><span className="eyebrow">ESPACIO DOCENTE · DOCENCIA</span><h2>Mis asignaturas</h2><p>Consulta tus grupos y gestiona las notas finales de sus estudiantes.</p></div><button className="button button-soft" onClick={loadOffers}>Actualizar ↻</button></div>
+    {error && <div className="notice notice-error">{error}</div>}
+    <section className="panel table-panel"><div className="table-toolbar"><div><strong>Ofertas asignadas</strong><span>{offers.length} grupos</span></div></div><div className="table-scroll"><table><thead><tr><th>Asignatura</th><th>Plan</th><th>Periodo</th><th>Grupo</th><th>Matriculados</th><th></th></tr></thead><tbody>
+      {loading ? <tr><td colSpan="6" className="table-empty">Cargando asignaturas…</td></tr> : offers.length === 0 ? <tr><td colSpan="6" className="table-empty">No tienes ofertas académicas asignadas.</td></tr> : offers.map((offer) => <tr key={offer.id}><td><strong>{offer.codigoAsignatura}</strong><br />{offer.asignatura}</td><td>{offer.plan}</td><td>{offer.periodo}</td><td>{offer.grupo}</td><td>{offer.estudiantes}</td><td><button className="table-action" onClick={() => openOffer(offer)}>Ver estudiantes →</button></td></tr>)}
+    </tbody></table></div></section>
+    {selectedOffer && <section className="panel table-panel"><div className="table-toolbar"><div><strong>{selectedOffer.codigoAsignatura} · {selectedOffer.asignatura}</strong><span>{selectedOffer.periodo} · Grupo {selectedOffer.grupo}</span></div><button className="text-button" onClick={() => setSelectedOffer(null)}>Cerrar lista ×</button></div><div className="notice notice-info">La nota final se registra entre 0 y 5, con máximo dos decimales. Las cancelaciones se tramitan desde Solicitudes.</div><div className="table-scroll"><table><thead><tr><th>Código</th><th>Estudiante</th><th>Estado</th><th>Nota final</th><th></th></tr></thead><tbody>
+      {rosterLoading ? <tr><td colSpan="5" className="table-empty">Cargando estudiantes…</td></tr> : roster.length === 0 ? <tr><td colSpan="5" className="table-empty">No hay matrículas en este grupo.</td></tr> : roster.map((row) => <tr key={row.matriculaId}><td>{row.codigoEstudiantil}</td><td>{row.nombreEstudiante}</td><td><select aria-label={`Estado de ${row.nombreEstudiante}`} value={states[row.matriculaId] || row.estado} disabled={['CANCELADA', 'PENDIENTE'].includes(row.estado)} onChange={(event) => setStates((current) => ({ ...current, [row.matriculaId]: event.target.value }))}>{['MATRICULADA', 'CURSANDO', 'APROBADA', 'REPROBADA'].map((value) => <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>)}</select></td><td><input className="inline-input grade-input" aria-label={`Nota final de ${row.nombreEstudiante}`} type="number" min="0" max="5" step="0.01" value={grades[row.matriculaId] ?? ''} disabled={['CANCELADA', 'PENDIENTE'].includes(row.estado)} onChange={(event) => setGrades((current) => ({ ...current, [row.matriculaId]: event.target.value }))} /></td><td><button className="table-action" disabled={savingId === row.matriculaId || ['CANCELADA', 'PENDIENTE'].includes(row.estado)} onClick={() => saveGrade(row)}>{savingId === row.matriculaId ? 'Guardando…' : 'Guardar'}</button></td></tr>)}
+    </tbody></table></div></section>}
+  </div>
 }
 
 function ReportPage({ title, path, csvPath, filters, onNotice }) {
@@ -640,12 +764,12 @@ const socioFields = [
 ]
 const reportRequestFilters = [
   { name: 'estado', label: 'Estado de solicitud', type: 'enum', enum: 'EstadoSolicitud' },
-  { name: 'programaId', label: 'Programa', optionsPath: '/api/admin/programas' },
-  { name: 'periodoId', label: 'Periodo', optionsPath: '/api/admin/periodos' },
+  { name: 'programaId', label: 'Programa', optionsPath: '/api/reportes/docente/programas' },
+  { name: 'periodoId', label: 'Periodo', optionsPath: '/api/reportes/docente/periodos' },
 ]
 const programFilter = [
-  { name: 'programaId', label: 'Programa', optionsPath: '/api/admin/programas' },
-  { name: 'periodoId', label: 'Periodo', optionsPath: '/api/admin/periodos' },
+  { name: 'programaId', label: 'Programa', optionsPath: '/api/reportes/docente/programas' },
+  { name: 'periodoId', label: 'Periodo', optionsPath: '/api/reportes/docente/periodos' },
 ]
 const studentActivities = {
   title: 'Mis actividades', singular: 'actividad', groupLabel: 'MI ESPACIO',

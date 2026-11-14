@@ -71,6 +71,7 @@
 .muted { color: #9aa59f; }
 .small { font-size: 10px; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; }
+.trajectory-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 15px; }
 .stat-card { min-height: 118px; padding: 15px 17px; border: 1px solid #e9eee9; border-radius: 11px; background: #fff; box-shadow: 0 4px 12px #233f3110; }
 .stat-top { display: flex; align-items: center; justify-content: space-between; }
 .stat-icon { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 9px; color: #43856a; background: #edf5ee; font-size: 14px; }
@@ -149,6 +150,7 @@ input:focus, select:focus, textarea:focus { border-color: #79aa8a; box-shadow: 0
 input::placeholder, textarea::placeholder { color: #b2bcb5; }
 .filter-select { width: auto; min-width: 160px; }
 .inline-input { min-width: 120px; min-height: 30px; }
+.grade-input { min-width: 72px; max-width: 92px; }
 .data-panel { padding: 22px; }
 .detail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 26px; margin: 0; }
 .detail-list > div { display: grid; grid-template-columns: minmax(120px, .7fr) 1.3fr; align-items: baseline; gap: 8px; padding: 11px 0; border-bottom: 1px solid #eff2ef; }

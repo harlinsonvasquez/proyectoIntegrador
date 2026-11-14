@@ -3,6 +3,8 @@ package com.proyectoItegrador.proyectoIntegrador.infrastructure.web;
 import com.proyectoItegrador.proyectoIntegrador.application.service.ReporteAcademicoService;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.config.AuthenticatedUser;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.ReporteDesempenoResponse;
+import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.AdminDtos.PeriodoResponse;
+import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.AdminDtos.ProgramaResponse;
 import java.util.Map;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -24,6 +26,18 @@ import java.util.List;
 @SecurityRequirement(name = "firebaseBearer")
 public class ReporteAcademicoController {
     private final ReporteAcademicoService service;
+
+    @GetMapping("/docente/programas")
+    @Operation(summary = "Programas disponibles para reportes docentes")
+    public List<ProgramaResponse> programasDocente(@AuthenticationPrincipal AuthenticatedUser actor) {
+        return service.programasDocente(actor);
+    }
+
+    @GetMapping("/docente/periodos")
+    @Operation(summary = "Periodos disponibles para reportes docentes")
+    public List<PeriodoResponse> periodosDocente(@AuthenticationPrincipal AuthenticatedUser actor) {
+        return service.periodosDocente(actor);
+    }
 
     @GetMapping("/desempeno")
     @Operation(summary = "Reporte de desempeño", description = "Calcula indicadores de notas y estados académicos, con filtros opcionales por programa y periodo.")

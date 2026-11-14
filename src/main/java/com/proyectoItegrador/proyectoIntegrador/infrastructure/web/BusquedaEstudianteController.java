@@ -4,6 +4,7 @@ import com.proyectoItegrador.proyectoIntegrador.application.service.BusquedaEstu
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.config.AuthenticatedUser;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.entity.EstadoEstudiante;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.EstudianteResumenResponse;
+import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.AdminDtos.ProgramaResponse;
 import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -16,14 +17,20 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/docente/estudiantes")
+@RequestMapping("/api/docente")
 @RequiredArgsConstructor
 @Tag(name = "Consulta docente de estudiantes", description = "Búsqueda de estudiantes para consulta académica docente.")
 @SecurityRequirement(name = "firebaseBearer")
 public class BusquedaEstudianteController {
     private final BusquedaEstudianteService service;
 
-    @GetMapping
+    @GetMapping("/programas")
+    @Operation(summary = "Listar programas del docente", description = "Devuelve programas con ofertas asignadas al docente.")
+    public List<ProgramaResponse> programas(@AuthenticationPrincipal AuthenticatedUser actor) {
+        return service.programas(actor);
+    }
+
+    @GetMapping("/estudiantes")
     @Operation(summary = "Buscar estudiantes", description = "Filtra estudiantes por programa, estado y texto de búsqueda.")
     public List<EstudianteResumenResponse> buscar(@AuthenticationPrincipal AuthenticatedUser actor,
             @RequestParam(required = false) Long programaId,

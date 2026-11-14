@@ -32,6 +32,9 @@ public class ConsultaAcademicaPersistenceAdapter implements ConsultaAcademicaPor
     public Optional<EstudianteEntity> estudiante(Long id) { return estudiantes.findById(id); }
     public Optional<EstudianteEntity> estudiantePorUsuario(Long id) { return estudiantes.findByUsuario_Id(id); }
     public List<MatriculaAsignaturaEntity> matriculas(Long id) { return matriculas.findAllByEstudiante_Id(id); }
+    public MatriculaAsignaturaEntity crearMatricula(MatriculaAsignaturaEntity matricula) {
+        return matriculas.save(matricula);
+    }
     public List<PlanEstudioEntity> planesActivos(Long id) { return planes.findAllByPrograma_IdAndActivoTrue(id); }
     public List<PlanAsignaturaEntity> asignaturasDelPlan(Long id) { return asignaturas.findAllByPlanEstudio_Id(id); }
     public List<PrerrequisitoEntity> prerrequisitos(Long id) { return prerrequisitos.findAllByPlanAsignatura_Id(id); }

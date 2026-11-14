@@ -4,6 +4,7 @@ import com.proyectoItegrador.proyectoIntegrador.application.port.out.SolicitudPe
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.config.AuthenticatedUser;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.entity.EstadoSolicitud;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.entity.RolNombre;
+import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.repository.DocenteJpaRepository;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.ReporteSolicitudesResponse;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -16,6 +17,7 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public class ReporteApplicationService {
     private final SolicitudPersistencePort persistence;
+    private final DocenteJpaRepository docentes;
 
     @Transactional(readOnly = true)
     public ReporteSolicitudesResponse solicitudes(AuthenticatedUser actor,
@@ -23,7 +25,12 @@ public class ReporteApplicationService {
         if (actor.role() != RolNombre.DOCENTE && actor.role() != RolNombre.ADMINISTRADOR) {
             throw new ReglaNegocioException(HttpStatus.FORBIDDEN, "Solo docentes autorizados pueden consultar reportes.");
         }
+        Long docenteId = actor.role() == RolNombre.DOCENTE
+                ? docentes.findByUsuario_Id(actor.userId()).map(docente -> docente.getId()).orElse(-1L)
+                : null;
         var filtered = persistence.todasLasSolicitudes().stream()
+                .filter(s -> docenteId == null || (s.getMatricula().getOfertaAsignatura().getDocente() != null
+                        && s.getMatricula().getOfertaAsignatura().getDocente().getId().equals(docenteId)))
                 .filter(s -> filtroEstado == null || s.getEstado() == filtroEstado)
                 .filter(s -> programaId == null || s.getEstudiante().getPrograma().getId().equals(programaId))
                 .filter(s -> periodoId == null || s.getMatricula().getOfertaAsignatura().getPeriodo().getId().equals(periodoId))

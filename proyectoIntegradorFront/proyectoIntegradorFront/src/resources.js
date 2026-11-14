@@ -4,7 +4,7 @@ const idField = (name, label, optionsPath, optionLabel, options = {}) => ({
 const numberField = (name, label, options = {}) => ({ name, label, type: 'number', ...options })
 const textField = (name, label, options = {}) => ({ name, label, ...options })
 const dateField = (name, label, options = {}) => ({ name, label, type: 'date', ...options })
-const boolField = (name, label, defaultValue = true) => ({ name, label, type: 'boolean', default: defaultValue })
+const boolField = (name, label, defaultValue = true, options = {}) => ({ name, label, type: 'boolean', default: defaultValue, ...options })
 const enumField = (name, label, enumName) => ({ name, label, type: 'enum', enum: enumName })
 const standardColumns = (fields) => fields.slice(0, 5).map((field) => ({ key: field.name, label: field.label }))
 const adminResource = (key, title, description, fields, options = {}) => ({
@@ -16,9 +16,9 @@ const adminResource = (key, title, description, fields, options = {}) => ({
     groupLabel: options.groupLabel || 'ADMINISTRACIÓN · ACADÉMICO',
     description, listPath: options.listPath || `/api/admin/${key}`,
     createPath: options.create === false ? null : options.createPath || `/api/admin/${key}`,
-    updatePath: options.update === false ? null : (row) => `/api/admin/${key}/${row.id}`,
-    deletePath: options.delete === false ? null : (row) => `/api/admin/${key}/${row.id}`,
-    detailPath: options.detail === false ? null : (row) => `/api/admin/${key}/${row.id}`,
+    updatePath: options.update === false ? null : options.updatePath || ((row) => `/api/admin/${key}/${row.id}`),
+    deletePath: options.delete === false ? null : options.deletePath || ((row) => `/api/admin/${key}/${row.id}`),
+    detailPath: options.detail === false ? null : options.detailPath || ((row) => `/api/admin/${key}/${row.id}`),
     fields, columns: options.columns || standardColumns(fields),
     updateFields: options.updateFields,
     createdMessage: options.createdMessage,
@@ -44,7 +44,11 @@ const planSubjectFields = [
   idField('planEstudioId', 'Plan de estudio', '/api/admin/planes-estudio', (item) => `${item.codigo} · ${item.nombre}`),
   idField('asignaturaId', 'Asignatura', '/api/admin/asignaturas', (item) => `${item.codigo} · ${item.nombre}`),
   numberField('semestreSugerido', 'Semestre sugerido', { min: 1, required: false }),
-  boolField('obligatoria'),
+  boolField('obligatoria', 'Obligatoria', true, {
+    trueLabel: 'Sí · Obligatoria',
+    falseLabel: 'No · Electiva / opcional',
+    help: 'Elige “No” para registrar una asignatura electiva u opcional.',
+  }),
 ]
 const prerequisiteFields = [
   idField('planAsignaturaId', 'Asignatura del plan', '/api/admin/plan-asignaturas', (item) => `${item.asignaturaCodigo} · ${item.asignaturaNombre} (${item.planCodigo})`),
@@ -233,6 +237,7 @@ export const studentNav = [
 
 export const teacherNav = [
   { label: 'ACOMPAÑAMIENTO', items: [
+    { id: 'asignaturas-docente', label: 'Mis asignaturas', icon: 'books' },
     { id: 'estudiantes-docente', label: 'Estudiantes', icon: 'people' },
     { id: 'solicitudes-docente', label: 'Solicitudes', icon: 'requests' },
   ] },

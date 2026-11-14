@@ -2,6 +2,7 @@ package com.proyectoItegrador.proyectoIntegrador.infrastructure.web;
 
 import com.proyectoItegrador.proyectoIntegrador.application.service.ConsultaAcademicaService;
 import com.proyectoItegrador.proyectoIntegrador.application.service.DatosPersonalesService;
+import com.proyectoItegrador.proyectoIntegrador.application.service.InscripcionEstudianteService;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.config.AuthenticatedUser;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.AsignaturaTrayectoriaResponse;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.PerfilEstudianteResponse;
@@ -10,6 +11,7 @@ import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.OfertaDis
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.PeriodoAcademicoResponse;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.ActualizarDatosPersonalesRequest;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.DatosPersonalesResponse;
+import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.InscripcionEstudianteRequest;
 import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -20,10 +22,13 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/api/estudiantes")
@@ -33,6 +38,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class ConsultaAcademicaController {
     private final ConsultaAcademicaService service;
     private final DatosPersonalesService datosPersonales;
+    private final InscripcionEstudianteService inscripciones;
 
     @GetMapping("/me")
     @Operation(summary = "Consultar mi perfil", description = "Devuelve el perfil del estudiante autenticado.")
@@ -67,6 +73,14 @@ public class ConsultaAcademicaController {
     public List<OfertaDisponibleResponse> ofertas(@AuthenticationPrincipal AuthenticatedUser actor,
             @RequestParam Long periodoId) {
         return service.ofertas(actor, periodoId);
+    }
+
+    @PostMapping("/me/matriculas")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Inscribirme a una oferta disponible", description = "Crea una matrícula si el estudiante cumple prerrequisitos y hay cupo.")
+    public IntentoAcademicoResponse inscribirme(@AuthenticationPrincipal AuthenticatedUser actor,
+            @Valid @RequestBody InscripcionEstudianteRequest request) {
+        return inscripciones.inscribir(actor, request);
     }
 
     @GetMapping("/{id}/perfil")
