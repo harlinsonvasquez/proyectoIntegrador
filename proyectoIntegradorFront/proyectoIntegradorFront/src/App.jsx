@@ -1053,9 +1053,13 @@ function AdminSocioProfile({ onNotice }) {
 
 function UserManagement({ onNotice }) {
   const [users, setUsers] = useState([])
+  const [programs, setPrograms] = useState([])
   const [loading, setLoading] = useState(true)
   const [roles, setRoles] = useState({})
   const [codes, setCodes] = useState({})
+  const [studentPrograms, setStudentPrograms] = useState({})
+  const [studentCodes, setStudentCodes] = useState({})
+  const [studentAdmissionDates, setStudentAdmissionDates] = useState({})
   const [busyId, setBusyId] = useState(null)
   const [query, setQuery] = useState('')
   const load = useCallback(async () => {
@@ -1064,17 +1068,35 @@ function UserManagement({ onNotice }) {
     finally { setLoading(false) }
   }, [onNotice])
   useEffect(() => { void Promise.resolve().then(load) }, [load])
+  useEffect(() => {
+    api.get('/api/admin/programas').then((items) => setPrograms(items || []))
+      .catch((error) => onNotice(`No fue posible cargar los programas: ${errorMessage(error)}`, 'error'))
+  }, [onNotice])
   async function updateRole(id) {
+    const selectedRole = roles[id] || users.find((item) => item.id === id)?.rol
+    const user = users.find((item) => item.id === id)
+    const needsStudentProfile = selectedRole === 'ESTUDIANTE' && !user?.tienePerfilEstudiante
+    if (needsStudentProfile && (!studentPrograms[id] || !studentCodes[id]?.trim())) {
+      onNotice('Selecciona el programa e ingresa el código estudiantil para crear el perfil.', 'error')
+      return
+    }
     setBusyId(id)
     try {
-      await api.patch(`/api/admin/usuarios/${id}/rol`, { rol: roles[id] || 'ESTUDIANTE', codigoDocente: codes[id] || null })
-      onNotice('Rol actualizado; el cambio quedó registrado en auditoría.', 'success')
+      await api.patch(`/api/admin/usuarios/${id}/rol`, {
+        rol: selectedRole, codigoDocente: codes[id] || null,
+        programaId: needsStudentProfile ? Number(studentPrograms[id]) : null,
+        codigoEstudiantil: needsStudentProfile ? studentCodes[id].trim() : null,
+        fechaIngreso: needsStudentProfile ? studentAdmissionDates[id] || null : null,
+      })
+      onNotice(needsStudentProfile
+        ? 'Rol actualizado y perfil de estudiante creado; el cambio quedó registrado en auditoría.'
+        : 'Rol actualizado; el cambio quedó registrado en auditoría.', 'success')
       await load()
     } catch (error) { onNotice(errorMessage(error), 'error') }
     finally { setBusyId(null) }
   }
   const filtered = users.filter((item) => `${item.correo} ${item.nombre} ${item.apellido} ${item.rol}`.toLowerCase().includes(query.toLowerCase()))
-  return <div className="page-content"><div className="section-heading"><div><span className="eyebrow">ADMINISTRACIÓN · ACCESO</span><h2>Usuarios y roles</h2><p>Consulta las cuentas y cambia roles con trazabilidad. El usuario no puede cambiar su propio rol.</p></div></div><div className="notice notice-info">Al asignar DOCENTE se crea el perfil docente cuando hace falta. Los perfiles estudiantiles y su historial se conservan.</div><section className="panel table-panel"><div className="table-toolbar"><div><strong>Cuentas registradas</strong><span>{users.length} usuarios</span></div><label className="searchbox"><Icon name="search" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar usuario…" /></label></div><div className="table-scroll"><table><thead><tr><th>Usuario</th><th>Correo</th><th>Rol actual</th><th>Nuevo rol</th><th>Código docente</th><th></th></tr></thead><tbody>{loading ? <tr><td colSpan="6" className="table-empty">Cargando…</td></tr> : filtered.map((item) => <tr key={item.id}><td>{item.nombre} {item.apellido}</td><td>{item.correo}</td><td><span className="status-pill status-neutral">{item.rol}</span></td><td><select value={roles[item.id] || item.rol} onChange={(e) => setRoles({ ...roles, [item.id]: e.target.value })}>{enums.RolNombre.map((roleValue) => <option key={roleValue}>{roleValue}</option>)}</select></td><td><input className="inline-input" value={codes[item.id] || ''} placeholder="Opcional" onChange={(e) => setCodes({ ...codes, [item.id]: e.target.value })} /></td><td><button className="table-action" disabled={busyId === item.id || (roles[item.id] || item.rol) === item.rol} onClick={() => updateRole(item.id)}>{busyId === item.id ? 'Guardando…' : 'Guardar rol'}</button></td></tr>)}</tbody></table></div></section></div>
+  return <div className="page-content"><div className="section-heading"><div><span className="eyebrow">ADMINISTRACIÓN · ACCESO</span><h2>Usuarios y roles</h2><p>Consulta las cuentas y cambia roles con trazabilidad. El usuario no puede cambiar su propio rol.</p></div></div><div className="notice notice-info">Al asignar DOCENTE se crea su perfil cuando hace falta. Al asignar ESTUDIANTE, si no tiene perfil, se solicita programa y código. Los perfiles e historiales existentes se conservan.</div><section className="panel table-panel"><div className="table-toolbar"><div><strong>Cuentas registradas</strong><span>{users.length} usuarios</span></div><label className="searchbox"><Icon name="search" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar usuario…" /></label></div><div className="table-scroll"><table><thead><tr><th>Usuario</th><th>Correo</th><th>Rol actual</th><th>Nuevo rol</th><th>Datos requeridos por rol</th><th></th></tr></thead><tbody>{loading ? <tr><td colSpan="6" className="table-empty">Cargando…</td></tr> : filtered.map((item) => { const selectedRole = roles[item.id] || item.rol; const needsStudentProfile = selectedRole === 'ESTUDIANTE' && !item.tienePerfilEstudiante; return <tr key={item.id}><td>{item.nombre} {item.apellido}</td><td>{item.correo}</td><td><span className="status-pill status-neutral">{item.rol}</span></td><td><select value={selectedRole} onChange={(e) => setRoles({ ...roles, [item.id]: e.target.value })}>{enums.RolNombre.map((roleValue) => <option key={roleValue}>{roleValue}</option>)}</select></td><td>{selectedRole === 'DOCENTE' ? <input className="inline-input" value={codes[item.id] || ''} placeholder="Código docente opcional" onChange={(e) => setCodes({ ...codes, [item.id]: e.target.value })} /> : needsStudentProfile ? <div className="role-profile-fields"><select aria-label={`Programa de ${item.nombre}`} value={studentPrograms[item.id] || ''} onChange={(e) => setStudentPrograms({ ...studentPrograms, [item.id]: e.target.value })}><option value="">Programa…</option>{programs.filter((program) => program.activo).map((program) => <option key={program.id} value={program.id}>{program.nombre}</option>)}</select><input className="inline-input" aria-label={`Código estudiantil de ${item.nombre}`} value={studentCodes[item.id] || ''} placeholder="Código estudiantil" onChange={(e) => setStudentCodes({ ...studentCodes, [item.id]: e.target.value })} /><input className="inline-input" aria-label={`Fecha de ingreso de ${item.nombre}`} type="date" value={studentAdmissionDates[item.id] || ''} onChange={(e) => setStudentAdmissionDates({ ...studentAdmissionDates, [item.id]: e.target.value })} /></div> : <span className="muted">Perfil existente o no requiere datos</span>}</td><td><button className="table-action" disabled={busyId === item.id || selectedRole === item.rol || (needsStudentProfile && programs.length === 0)} onClick={() => updateRole(item.id)}>{busyId === item.id ? 'Guardando…' : 'Guardar rol'}</button></td></tr>})}</tbody></table></div></section></div>
 }
 
 export default App

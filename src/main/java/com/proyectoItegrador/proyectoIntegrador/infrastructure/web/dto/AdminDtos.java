@@ -63,9 +63,10 @@ public final class AdminDtos {
     public record PerfilRequest(@Size(max = 100) String municipioResidencia,
             @Min(1) @Max(6) Short estrato, @Size(max = 50) String situacionLaboral,
             boolean requiereApoyo, @Size(max = 1000) String observacion) {}
-    public record CambiarRolRequest(@NotNull RolNombre rol, @Size(max = 30) String codigoDocente) {}
+    public record CambiarRolRequest(@NotNull RolNombre rol, @Size(max = 30) String codigoDocente,
+            Long programaId, @Size(max = 30) String codigoEstudiantil, LocalDate fechaIngreso) {}
     public record UsuarioResponse(Long id, String correo, String nombre, String apellido,
-            String rol, boolean activo) {}
+            String rol, boolean activo, boolean tienePerfilEstudiante, boolean tienePerfilDocente) {}
     public record EstudianteResponse(Long id, Long usuarioId, String correo, String nombre,
             String apellido, Long programaId, String codigoEstudiantil, LocalDate fechaIngreso,
             EstadoEstudiante estado, boolean usuarioActivo) {}

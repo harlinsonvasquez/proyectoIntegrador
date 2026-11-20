@@ -223,6 +223,7 @@ input::placeholder, textarea::placeholder { color: #b2bcb5; }
 .evaluation-picker label { width: min(100%, 360px); }
 .evaluation-picker select { min-height: 38px; }
 @media (max-width: 700px) { .assessment-form { grid-template-columns: 1fr; } .assessment-description, .assessment-form-heading { grid-column: 1; } .evaluation-picker { align-items: stretch; flex-direction: column; } }
+.role-profile-fields { display: grid; min-width: 220px; gap: 6px; }
 .compact-list > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #eff2ef; color: #64746a; font-size: 9px; }
 .profile-tabs { max-height: 55vh; overflow-y: auto; }
 

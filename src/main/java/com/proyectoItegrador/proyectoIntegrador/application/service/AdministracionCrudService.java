@@ -66,9 +66,17 @@ public class AdministracionCrudService {
                 && usuarios.countByRol_NombreAndActivoTrue(RolNombre.ADMINISTRADOR) <= 1)
             throw regla(HttpStatus.CONFLICT, "No se puede cambiar el rol del último administrador activo.");
 
-        if (rolNuevo == RolNombre.ESTUDIANTE && estudiantes.findByUsuario_Id(id).isEmpty())
-            throw regla(HttpStatus.CONFLICT,
-                    "El usuario no tiene perfil de estudiante; créalo mediante el flujo de registro de estudiante.");
+        if (rolNuevo == RolNombre.ESTUDIANTE && estudiantes.findByUsuario_Id(id).isEmpty()) {
+            if (request.programaId() == null || request.codigoEstudiantil() == null
+                    || request.codigoEstudiantil().isBlank()) {
+                throw regla(HttpStatus.BAD_REQUEST,
+                        "Para asignar el rol ESTUDIANTE se requiere programa y código estudiantil.");
+            }
+            EstudianteEntity estudiante = estudiantes.saveAndFlush(new EstudianteEntity(usuario,
+                    programaEntity(request.programaId()), limpio(request.codigoEstudiantil()),
+                    request.fechaIngreso(), usuario.isActivo() ? EstadoEstudiante.ACTIVO : EstadoEstudiante.INACTIVO));
+            audit(actor, "estudiante", estudiante.getId(), OperacionAuditoria.INSERT, null, response(estudiante));
+        }
 
         if (rolNuevo == RolNombre.DOCENTE) {
             var docente = docentes.findByUsuario_Id(id);
@@ -582,7 +590,8 @@ public class AdministracionCrudService {
     }
     private UsuarioResponse usuarioResponse(UsuarioEntity e) {
         return new UsuarioResponse(e.getId(), e.getCorreo(), e.getNombre(), e.getApellido(),
-                e.getRol().getNombre().name(), e.isActivo());
+                e.getRol().getNombre().name(), e.isActivo(), estudiantes.findByUsuario_Id(e.getId()).isPresent(),
+                docentes.findByUsuario_Id(e.getId()).isPresent());
     }
     private EstudianteResponse response(EstudianteEntity e) {
         return new EstudianteResponse(e.getId(), e.getUsuario().getId(), e.getUsuario().getCorreo(),
