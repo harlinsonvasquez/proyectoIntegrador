@@ -277,7 +277,8 @@ function ResourcePage({ resource, onNotice }) {
     Promise.all(optionFields.map(async (field) => {
       try {
         const values = await api.get(field.optionsPath)
-        const items = (Array.isArray(values) ? values : values?.content || []).map((item) => ({
+        const source = Array.isArray(values) ? values : values?.content || []
+        const items = source.filter((item) => !field.optionsFilter || field.optionsFilter(item, rows)).map((item) => ({
           value: item[field.optionValue || 'id'],
           label: field.optionLabel ? field.optionLabel(item) : `${item[field.optionValue || 'id']} · ${item.nombre || item.codigo || item.correo || item.id}`,
         }))
@@ -287,7 +288,7 @@ function ResourcePage({ resource, onNotice }) {
       }
     })).then((entries) => { if (alive) setOptionsByName(Object.fromEntries(entries)) })
     return () => { alive = false }
-  }, [resource.fields])
+  }, [resource.fields, rows])
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase()
@@ -362,7 +363,7 @@ function ResourcePage({ resource, onNotice }) {
         <div className="table-foot"><span>Mostrando {filtered.length} de {rows.length} resultados</span><button className="text-button" onClick={load}>Actualizar lista ↻</button></div>
       </section>
       {modal && <Modal title={modal.mode === 'create' ? resource.createLabel || `Nuevo ${resource.singular}` : modal.mode === 'edit' ? `Editar ${resource.singular}` : `Detalle: ${resource.singular}`} onClose={() => setModal(null)}>
-        {modal.mode === 'view' ? <dl className="detail-list">{Object.entries(modal.values || {}).map(([key, value]) => <div key={key}><dt>{humanize(key)}</dt><dd>{displayValue(value)}</dd></div>)}</dl>
+        {modal.mode === 'view' ? (resource.renderDetail ? resource.renderDetail(modal.values) : <dl className="detail-list">{Object.entries(modal.values || {}).map(([key, value]) => <div key={key}><dt>{humanize(key)}</dt><dd>{displayValue(value)}</dd></div>)}</dl>)
           : <form className="modal-form" onSubmit={submit}><div className="form-grid">{formFields.map((field) => <label key={field.name} className={field.type === 'textarea' ? 'field-wide' : ''}>{field.label}{field.help && <small>{field.help}</small>}<FieldInput field={field} value={modal.values[field.name]} options={optionsByName[field.name]} onChange={(name, value) => setModal((current) => ({ ...current, values: { ...current.values, [name]: value } }))} /></label>)}</div>
             <div className="modal-actions"><button type="button" className="button button-soft" onClick={() => setModal(null)}>Cancelar</button><button className="button button-primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar cambios'}</button></div>
           </form>}
@@ -459,16 +460,27 @@ function AcademicTrajectory() {
 
 function AcademicHistory({ onNotice }) {
   const [rows, setRows] = useState([])
+  const [partialRows, setPartialRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const load = useCallback(async () => {
     setLoading(true); setError('')
-    try { setRows(await api.get('/api/estudiantes/me/trayectoria/historial')) }
+    try {
+      const [history, partialGrades] = await Promise.all([
+        api.get('/api/estudiantes/me/trayectoria/historial'),
+        api.get('/api/estudiantes/me/notas-parciales'),
+      ])
+      setRows(history || []); setPartialRows(partialGrades || [])
+    }
     catch (err) { setError(errorMessage(err)); onNotice(errorMessage(err), 'error') }
     finally { setLoading(false) }
   }, [onNotice])
   useEffect(() => { void Promise.resolve().then(load) }, [load])
-  return <div className="page-content"><div className="section-heading page-title-row"><div><span className="eyebrow">MI VIDA ACADÉMICA</span><h2>Historial académico</h2><p>Consulta cada intento de matrícula, incluidos los cursos repetidos en distintos periodos.</p></div><button className="button button-soft" onClick={load}>Actualizar ↻</button></div>{error && <div className="notice notice-error">{error}</div>}<section className="panel table-panel"><div className="table-toolbar"><div><strong>Intentos académicos</strong><span>{rows.length} registros</span></div></div><div className="table-scroll"><table><thead><tr><th>Periodo</th><th>Código</th><th>Asignatura</th><th>Grupo</th><th>Estado</th><th>Nota final</th><th>Fecha estado</th></tr></thead><tbody>{loading ? <tr><td colSpan="7" className="table-empty">Consultando historial…</td></tr> : rows.length ? rows.map((row) => <tr key={row.matriculaId}><td>{row.codigoPeriodo} · {row.periodo}</td><td>{row.codigoAsignatura}</td><td>{row.asignatura}</td><td>{displayValue(row.grupo)}</td><td><span className={`status-pill ${statusClass(row.estado)}`}>{row.estado?.replaceAll('_', ' ')}</span></td><td>{displayValue(row.notaFinal)}</td><td>{displayValue(row.fechaEstado)}</td></tr>) : <tr><td colSpan="7" className="table-empty">Aún no hay matrículas en el historial.</td></tr>}</tbody></table></div></section></div>
+  return <div className="page-content"><div className="section-heading page-title-row"><div><span className="eyebrow">MI VIDA ACADÉMICA</span><h2>Historial académico</h2><p>Consulta tus matrículas, notas parciales y notas finales por asignatura.</p></div><button className="button button-soft" onClick={load}>Actualizar ↻</button></div>{error && <div className="notice notice-error">{error}</div>}
+    <section className="panel table-panel"><div className="table-toolbar"><div><strong>Notas parciales</strong><span>{partialRows.length} calificaciones</span></div></div><div className="table-scroll"><table><thead><tr><th>Periodo</th><th>Asignatura</th><th>Grupo</th><th>Trabajo / evaluación</th><th>Porcentaje</th><th>Nota</th><th>Aporte</th><th>Nota final materia</th><th>Observación</th></tr></thead><tbody>
+      {loading ? <tr><td colSpan="9" className="table-empty">Consultando notas parciales…</td></tr> : partialRows.length ? partialRows.map((row) => <tr key={row.notaParcialId}><td>{row.periodo}</td><td><strong>{row.codigoAsignatura}</strong><br />{row.asignatura}</td><td>{row.grupo}</td><td>{row.evaluacion}</td><td>{Number(row.porcentaje).toFixed(2)} %</td><td>{Number(row.nota).toFixed(2)}</td><td>{Number(row.aportePonderado).toFixed(2)}</td><td><strong>{row.notaFinal == null ? 'Pendiente' : Number(row.notaFinal).toFixed(2)}</strong></td><td>{row.observacion || '—'}</td></tr>) : <tr><td colSpan="9" className="table-empty">Aún no hay notas parciales registradas.</td></tr>}
+    </tbody></table></div></section>
+    <section className="panel table-panel"><div className="table-toolbar"><div><strong>Intentos académicos</strong><span>{rows.length} registros</span></div></div><div className="table-scroll"><table><thead><tr><th>Periodo</th><th>Código</th><th>Asignatura</th><th>Grupo</th><th>Estado</th><th>Nota final</th><th>Fecha estado</th></tr></thead><tbody>{loading ? <tr><td colSpan="7" className="table-empty">Consultando historial…</td></tr> : rows.length ? rows.map((row) => <tr key={row.matriculaId}><td>{row.codigoPeriodo} · {row.periodo}</td><td>{row.codigoAsignatura}</td><td>{row.asignatura}</td><td>{displayValue(row.grupo)}</td><td><span className={`status-pill ${statusClass(row.estado)}`}>{row.estado?.replaceAll('_', ' ')}</span></td><td>{displayValue(row.notaFinal)}</td><td>{displayValue(row.fechaEstado)}</td></tr>) : <tr><td colSpan="7" className="table-empty">Aún no hay matrículas en el historial.</td></tr>}</tbody></table></div></section></div>
 }
 
 function AvailableOffers({ onNotice }) {
@@ -543,11 +555,44 @@ function StudentRequests({ onNotice }) {
     title: 'Mis solicitudes', singular: 'solicitud', groupLabel: 'MI ESPACIO',
     description: 'Consulta el estado y seguimiento de las solicitudes de cancelación que has creado.',
     listPath: '/api/solicitudes/mias', createPath: '/api/solicitudes',
-    fields: [{ name: 'matriculaId', label: 'Matrícula', type: 'number' }, { name: 'motivo', label: 'Motivo de cancelación', type: 'textarea' }],
+    fields: [
+      {
+        name: 'matriculaId', label: 'Asignatura que deseas cancelar', type: 'select',
+        optionsPath: '/api/estudiantes/me/trayectoria/historial', optionValue: 'matriculaId',
+        optionLabel: (item) => `${item.codigoAsignatura} · ${item.asignatura} — ${item.periodo} · Grupo ${item.grupo} (${item.estado?.replaceAll('_', ' ')})`,
+        optionsFilter: (item, requests) => ['MATRICULADA', 'CURSANDO'].includes(item.estado)
+          && !requests.some((request) => request.matriculaId === item.matriculaId && ['PENDIENTE', 'EN_REVISION'].includes(request.estado)),
+        help: 'Solo aparecen tus matrículas activas sin una solicitud pendiente.',
+      },
+      { name: 'motivo', label: 'Motivo de cancelación', type: 'textarea' },
+    ],
     columns: [{ key: 'id', label: 'Solicitud' }, { key: 'asignatura', label: 'Asignatura' }, { key: 'periodo', label: 'Periodo' }, { key: 'estado', label: 'Estado', render: (row) => <span className={`status-pill ${statusClass(row.estado)}`}>{row.estado?.replaceAll('_', ' ')}</span> }, { key: 'fechaCreacion', label: 'Fecha' }],
     detailPath: (row) => `/api/solicitudes/${row.id}`,
+    renderDetail: (request) => <StudentRequestDetail request={request} />,
   }
   return <ResourcePage resource={resource} onNotice={onNotice} />
+}
+
+function StudentRequestDetail({ request }) {
+  const history = [...(request?.seguimientos || [])].sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+  const formatDate = (value) => value ? new Intl.DateTimeFormat('es-CO', {
+    dateStyle: 'medium', timeStyle: 'short',
+  }).format(new Date(value)) : 'Fecha no disponible'
+  return <div className="student-request-detail">
+    <section className="request-summary">
+      <div><span>Asignatura</span><strong>{request?.asignatura || 'Sin asignatura'}</strong><small>{request?.periodo || 'Periodo no disponible'}</small></div>
+      <div><span>Estado actual</span><strong><span className={`status-pill ${statusClass(request?.estado)}`}>{request?.estado?.replaceAll('_', ' ') || 'Sin estado'}</span></strong><small>Creada {formatDate(request?.fechaCreacion)}</small></div>
+    </section>
+    <section className="request-reason"><h4>Motivo de cancelación</h4><p>{request?.motivo || 'No se registró un motivo.'}</p></section>
+    <section className="request-history"><h4>Seguimiento de la solicitud</h4>
+      {history.length ? <ol className="request-timeline">{history.map((item, index) => <li className="request-timeline-item" key={item.id ?? `${item.estado}-${index}`}>
+        <span className={`request-timeline-marker ${index === history.length - 1 ? 'current' : ''}`} aria-hidden="true" />
+        <div className="request-timeline-content"><div className="request-timeline-heading"><strong>{item.estado?.replaceAll('_', ' ') || 'Actualización'}</strong><time>{formatDate(item.fecha)}</time></div>
+          <p>{item.observacion || 'Sin observaciones para este paso.'}</p><small>Responsable: {item.responsable || 'Sistema'}</small>
+        </div>
+      </li>)}</ol> : <p className="request-history-empty">Aún no hay actualizaciones de seguimiento.</p>}
+    </section>
+  </div>
 }
 
 function Notifications({ onNotice }) {
@@ -660,9 +705,17 @@ function TeacherCourses({ onNotice }) {
   const [roster, setRoster] = useState([])
   const [grades, setGrades] = useState({})
   const [states, setStates] = useState({})
+  const [evaluations, setEvaluations] = useState([])
+  const [selectedEvaluationId, setSelectedEvaluationId] = useState('')
+  const [partialRows, setPartialRows] = useState([])
+  const [partialGrades, setPartialGrades] = useState({})
+  const [partialObservations, setPartialObservations] = useState({})
+  const [newEvaluation, setNewEvaluation] = useState({ nombre: '', descripcion: '', porcentaje: '', fechaLimite: '' })
   const [loading, setLoading] = useState(true)
   const [rosterLoading, setRosterLoading] = useState(false)
   const [savingId, setSavingId] = useState(null)
+  const [partialSavingId, setPartialSavingId] = useState(null)
+  const [evaluationSaving, setEvaluationSaving] = useState(false)
   const [error, setError] = useState('')
 
   const loadOffers = useCallback(async () => {
@@ -679,12 +732,69 @@ function TeacherCourses({ onNotice }) {
     setRosterLoading(true)
     setError('')
     try {
-      const rows = await api.get(`/api/docente/ofertas/${offer.id}/matriculas`)
+      const [rows, evaluationRows] = await Promise.all([
+        api.get(`/api/docente/ofertas/${offer.id}/matriculas`),
+        api.get(`/api/docente/ofertas/${offer.id}/evaluaciones`),
+      ])
       setRoster(rows)
       setGrades(Object.fromEntries(rows.map((row) => [row.matriculaId, row.notaFinal ?? ''])))
       setStates(Object.fromEntries(rows.map((row) => [row.matriculaId, row.estado])))
+      setEvaluations(evaluationRows || [])
+      setSelectedEvaluationId(''); setPartialRows([]); setPartialGrades({}); setPartialObservations({})
+      setNewEvaluation({ nombre: '', descripcion: '', porcentaje: '', fechaLimite: '' })
     } catch (err) { setRoster([]); setError(errorMessage(err)) }
     finally { setRosterLoading(false) }
+  }
+
+  async function selectEvaluation(evaluationId) {
+    setSelectedEvaluationId(evaluationId)
+    setPartialRows([]); setPartialGrades({}); setPartialObservations({})
+    if (!evaluationId || !selectedOffer) return
+    try {
+      const rows = await api.get(`/api/docente/ofertas/${selectedOffer.id}/evaluaciones/${evaluationId}/notas`)
+      setPartialRows(rows || [])
+      setPartialGrades(Object.fromEntries((rows || []).map((row) => [row.matriculaId, row.nota ?? ''])))
+      setPartialObservations(Object.fromEntries((rows || []).map((row) => [row.matriculaId, row.observacion ?? ''])))
+    } catch (err) { onNotice(errorMessage(err), 'error') }
+  }
+
+  async function createEvaluation(event) {
+    event.preventDefault()
+    if (!selectedOffer) return
+    const allocated = evaluations.filter((item) => item.activa).reduce((total, item) => total + Number(item.porcentaje), 0)
+    if (allocated + Number(newEvaluation.porcentaje) > 100) {
+      onNotice('El porcentaje acumulado de las evaluaciones no puede superar 100 %.', 'error'); return
+    }
+    setEvaluationSaving(true)
+    try {
+      const created = await api.post(`/api/docente/ofertas/${selectedOffer.id}/evaluaciones`, {
+        nombre: newEvaluation.nombre.trim(), descripcion: newEvaluation.descripcion.trim() || null,
+        porcentaje: Number(newEvaluation.porcentaje),
+        fechaLimite: newEvaluation.fechaLimite ? new Date(newEvaluation.fechaLimite).toISOString() : null,
+      })
+      setEvaluations((current) => [...current, created])
+      setNewEvaluation({ nombre: '', descripcion: '', porcentaje: '', fechaLimite: '' })
+      onNotice('Evaluación creada. Ahora puedes registrar las notas parciales.', 'success')
+      await selectEvaluation(String(created.id))
+    } catch (err) { onNotice(errorMessage(err), 'error') }
+    finally { setEvaluationSaving(false) }
+  }
+
+  async function savePartialGrade(row) {
+    const value = partialGrades[row.matriculaId]
+    if (value === '' || value == null) { onNotice('Ingresa una nota entre 0 y 5.', 'error'); return }
+    setPartialSavingId(row.matriculaId)
+    try {
+      const updated = await api.put(`/api/docente/ofertas/${selectedOffer.id}/evaluaciones/${selectedEvaluationId}/matriculas/${row.matriculaId}/nota`, {
+        nota: Number(value), observacion: partialObservations[row.matriculaId]?.trim() || null,
+      })
+      setPartialRows((current) => current.map((item) => item.matriculaId === updated.matriculaId ? updated : item))
+      setRoster((current) => current.map((item) => item.matriculaId === updated.matriculaId
+        ? { ...item, notaFinal: updated.notaFinal } : item))
+      setGrades((current) => ({ ...current, [updated.matriculaId]: updated.notaFinal ?? '' }))
+      onNotice(`Nota parcial de ${row.nombreEstudiante} guardada.`, 'success')
+    } catch (err) { onNotice(errorMessage(err), 'error') }
+    finally { setPartialSavingId(null) }
   }
 
   async function saveGrade(row) {
@@ -705,14 +815,30 @@ function TeacherCourses({ onNotice }) {
   }
 
   return <div className="page-content">
-    <div className="section-heading page-title-row"><div><span className="eyebrow">ESPACIO DOCENTE · DOCENCIA</span><h2>Mis asignaturas</h2><p>Consulta tus grupos y gestiona las notas finales de sus estudiantes.</p></div><button className="button button-soft" onClick={loadOffers}>Actualizar ↻</button></div>
+    <div className="section-heading page-title-row"><div><span className="eyebrow">ESPACIO DOCENTE · DOCENCIA</span><h2>Mis asignaturas</h2><p>Consulta tus grupos, crea evaluaciones y registra notas parciales y finales.</p></div><button className="button button-soft" onClick={loadOffers}>Actualizar ↻</button></div>
     {error && <div className="notice notice-error">{error}</div>}
     <section className="panel table-panel"><div className="table-toolbar"><div><strong>Ofertas asignadas</strong><span>{offers.length} grupos</span></div></div><div className="table-scroll"><table><thead><tr><th>Asignatura</th><th>Plan</th><th>Periodo</th><th>Grupo</th><th>Matriculados</th><th></th></tr></thead><tbody>
       {loading ? <tr><td colSpan="6" className="table-empty">Cargando asignaturas…</td></tr> : offers.length === 0 ? <tr><td colSpan="6" className="table-empty">No tienes ofertas académicas asignadas.</td></tr> : offers.map((offer) => <tr key={offer.id}><td><strong>{offer.codigoAsignatura}</strong><br />{offer.asignatura}</td><td>{offer.plan}</td><td>{offer.periodo}</td><td>{offer.grupo}</td><td>{offer.estudiantes}</td><td><button className="table-action" onClick={() => openOffer(offer)}>Ver estudiantes →</button></td></tr>)}
     </tbody></table></div></section>
-    {selectedOffer && <section className="panel table-panel"><div className="table-toolbar"><div><strong>{selectedOffer.codigoAsignatura} · {selectedOffer.asignatura}</strong><span>{selectedOffer.periodo} · Grupo {selectedOffer.grupo}</span></div><button className="text-button" onClick={() => setSelectedOffer(null)}>Cerrar lista ×</button></div><div className="notice notice-info">La nota final se registra entre 0 y 5, con máximo dos decimales. Las cancelaciones se tramitan desde Solicitudes.</div><div className="table-scroll"><table><thead><tr><th>Código</th><th>Estudiante</th><th>Estado</th><th>Nota final</th><th></th></tr></thead><tbody>
-      {rosterLoading ? <tr><td colSpan="5" className="table-empty">Cargando estudiantes…</td></tr> : roster.length === 0 ? <tr><td colSpan="5" className="table-empty">No hay matrículas en este grupo.</td></tr> : roster.map((row) => <tr key={row.matriculaId}><td>{row.codigoEstudiantil}</td><td>{row.nombreEstudiante}</td><td><select aria-label={`Estado de ${row.nombreEstudiante}`} value={states[row.matriculaId] || row.estado} disabled={['CANCELADA', 'PENDIENTE'].includes(row.estado)} onChange={(event) => setStates((current) => ({ ...current, [row.matriculaId]: event.target.value }))}>{['MATRICULADA', 'CURSANDO', 'APROBADA', 'REPROBADA'].map((value) => <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>)}</select></td><td><input className="inline-input grade-input" aria-label={`Nota final de ${row.nombreEstudiante}`} type="number" min="0" max="5" step="0.01" value={grades[row.matriculaId] ?? ''} disabled={['CANCELADA', 'PENDIENTE'].includes(row.estado)} onChange={(event) => setGrades((current) => ({ ...current, [row.matriculaId]: event.target.value }))} /></td><td><button className="table-action" disabled={savingId === row.matriculaId || ['CANCELADA', 'PENDIENTE'].includes(row.estado)} onClick={() => saveGrade(row)}>{savingId === row.matriculaId ? 'Guardando…' : 'Guardar'}</button></td></tr>)}
-    </tbody></table></div></section>}
+    {selectedOffer && <>
+      <section className="panel table-panel"><div className="table-toolbar"><div><strong>{selectedOffer.codigoAsignatura} · {selectedOffer.asignatura}</strong><span>{selectedOffer.periodo} · Grupo {selectedOffer.grupo}</span></div><button className="text-button" onClick={() => setSelectedOffer(null)}>Cerrar grupo ×</button></div>
+        <form className="assessment-form" onSubmit={createEvaluation}>
+          <div className="assessment-form-heading"><div><h3>Nueva evaluación o trabajo</h3><p>Porcentaje asignado: {evaluations.filter((item) => item.activa).reduce((total, item) => total + Number(item.porcentaje), 0).toFixed(2)} % de 100 %</p></div></div>
+          <label>Nombre<input required maxLength="150" value={newEvaluation.nombre} onChange={(event) => setNewEvaluation({ ...newEvaluation, nombre: event.target.value })} placeholder="Ej. Taller 1" /></label>
+          <label>Porcentaje<input required type="number" min="0.01" max="100" step="0.01" value={newEvaluation.porcentaje} onChange={(event) => setNewEvaluation({ ...newEvaluation, porcentaje: event.target.value })} /></label>
+          <label>Fecha límite<input type="datetime-local" value={newEvaluation.fechaLimite} onChange={(event) => setNewEvaluation({ ...newEvaluation, fechaLimite: event.target.value })} /></label>
+          <label className="assessment-description">Descripción<textarea rows="2" maxLength="2000" value={newEvaluation.descripcion} onChange={(event) => setNewEvaluation({ ...newEvaluation, descripcion: event.target.value })} /></label>
+          <button className="button button-primary" disabled={evaluationSaving || !newEvaluation.nombre || !newEvaluation.porcentaje}>{evaluationSaving ? 'Creando…' : 'Crear evaluación'}</button>
+        </form>
+        <div className="evaluation-picker"><div><h3>Notas parciales</h3><p>Registra notas entre 0 y 5. Se calcula el aporte según el porcentaje del trabajo.</p></div><label>Evaluación<select value={selectedEvaluationId} onChange={(event) => selectEvaluation(event.target.value)}><option value="">Selecciona una evaluación</option>{evaluations.map((item) => <option key={item.id} value={item.id}>{item.nombre} · {Number(item.porcentaje).toFixed(2)} %{item.activa ? '' : ' · Inactiva'}</option>)}</select></label></div>
+        {selectedEvaluationId && <div className="table-scroll"><table><thead><tr><th>Código</th><th>Estudiante</th><th>Nota (0–5)</th><th>Observación</th><th>Aporte ponderado</th><th>Nota final materia</th><th></th></tr></thead><tbody>
+          {rosterLoading ? <tr><td colSpan="7" className="table-empty">Cargando estudiantes…</td></tr> : partialRows.length === 0 ? <tr><td colSpan="7" className="table-empty">No hay estudiantes habilitados para esta evaluación.</td></tr> : partialRows.map((row) => <tr key={row.matriculaId}><td>{row.codigoEstudiantil}</td><td>{row.nombreEstudiante}</td><td><input className="inline-input grade-input" aria-label={`Nota de ${row.nombreEstudiante}`} type="number" min="0" max="5" step="0.01" value={partialGrades[row.matriculaId] ?? ''} onChange={(event) => setPartialGrades((current) => ({ ...current, [row.matriculaId]: event.target.value }))} /></td><td><input className="inline-input" aria-label={`Observación para ${row.nombreEstudiante}`} maxLength="1000" value={partialObservations[row.matriculaId] ?? ''} onChange={(event) => setPartialObservations((current) => ({ ...current, [row.matriculaId]: event.target.value }))} /></td><td>{row.nota == null ? '—' : Number(row.aportePonderado).toFixed(2)}</td><td><strong>{row.notaFinal == null ? 'Pendiente' : Number(row.notaFinal).toFixed(2)}</strong></td><td><button className="table-action" disabled={partialSavingId === row.matriculaId} onClick={() => savePartialGrade(row)}>{partialSavingId === row.matriculaId ? 'Guardando…' : row.nota == null ? 'Guardar' : 'Actualizar'}</button></td></tr>)}
+        </tbody></table></div>}
+      </section>
+      <section className="panel table-panel"><div className="table-toolbar"><div><strong>Notas finales y estado académico</strong><span>Los parciales se consultan en la sección anterior</span></div></div><div className="notice notice-info">{evaluations.some((item) => item.activa) ? 'La nota final se calcula cuando todas las evaluaciones activas sumen 100 % y tengan nota.' : 'Sin evaluaciones parciales activas, puedes registrar la nota final manualmente.'}</div><div className="table-scroll"><table><thead><tr><th>Código</th><th>Estudiante</th><th>Estado</th><th>Nota final</th><th></th></tr></thead><tbody>
+        {rosterLoading ? <tr><td colSpan="5" className="table-empty">Cargando estudiantes…</td></tr> : roster.length === 0 ? <tr><td colSpan="5" className="table-empty">No hay matrículas en este grupo.</td></tr> : roster.map((row) => <tr key={row.matriculaId}><td>{row.codigoEstudiantil}</td><td>{row.nombreEstudiante}</td><td><select aria-label={`Estado de ${row.nombreEstudiante}`} value={states[row.matriculaId] || row.estado} disabled={['CANCELADA', 'PENDIENTE'].includes(row.estado)} onChange={(event) => setStates((current) => ({ ...current, [row.matriculaId]: event.target.value }))}>{['MATRICULADA', 'CURSANDO', 'APROBADA', 'REPROBADA'].map((value) => <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>)}</select></td><td><input className="inline-input grade-input" aria-label={`Nota final de ${row.nombreEstudiante}`} type="number" min="0" max="5" step="0.01" value={grades[row.matriculaId] ?? ''} disabled={['CANCELADA', 'PENDIENTE'].includes(row.estado) || evaluations.some((item) => item.activa)} onChange={(event) => setGrades((current) => ({ ...current, [row.matriculaId]: event.target.value }))} /></td><td><button className="table-action" disabled={savingId === row.matriculaId || ['CANCELADA', 'PENDIENTE'].includes(row.estado)} onClick={() => saveGrade(row)}>{savingId === row.matriculaId ? 'Guardando…' : 'Guardar'}</button></td></tr>)}
+      </tbody></table></div></section>
+    </>}
   </div>
 }
 

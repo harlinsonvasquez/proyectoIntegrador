@@ -10,6 +10,7 @@ import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.e
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.entity.RolNombre;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.repository.AuditoriaCambioJpaRepository;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.repository.DocenteJpaRepository;
+import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.repository.EvaluacionAsignaturaJpaRepository;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.repository.MatriculaAsignaturaJpaRepository;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.repository.OfertaAsignaturaJpaRepository;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.repository.UsuarioJpaRepository;
@@ -35,6 +36,7 @@ public class GestionDocenteAcademicaService {
             EstadoMatricula.MATRICULADA, EstadoMatricula.CURSANDO);
 
     private final DocenteJpaRepository docentes;
+    private final EvaluacionAsignaturaJpaRepository evaluaciones;
     private final OfertaAsignaturaJpaRepository ofertas;
     private final MatriculaAsignaturaJpaRepository matriculas;
     private final UsuarioJpaRepository usuarios;
@@ -75,6 +77,17 @@ public class GestionDocenteAcademicaService {
                 .orElseThrow(() -> new ReglaNegocioException(HttpStatus.NOT_FOUND,
                         "Matrícula no encontrada para las asignaturas de este docente."));
         validarCalificacion(matricula, request);
+
+        if (evaluaciones.existsByOferta_IdAndActivaTrue(matricula.getOfertaAsignatura().getId())) {
+            BigDecimal actual = matricula.getNotaFinal();
+            BigDecimal solicitada = request.notaFinal();
+            boolean mismaNota = actual == null ? solicitada == null
+                    : solicitada != null && actual.compareTo(solicitada) == 0;
+            if (!mismaNota) {
+                throw new ReglaNegocioException(HttpStatus.CONFLICT,
+                        "La nota final de esta oferta se calcula automáticamente al completar las evaluaciones parciales.");
+            }
+        }
 
         var anterior = Map.of("estado", matricula.getEstado().name(),
                 "notaFinal", matricula.getNotaFinal() == null ? "" : matricula.getNotaFinal().toPlainString());

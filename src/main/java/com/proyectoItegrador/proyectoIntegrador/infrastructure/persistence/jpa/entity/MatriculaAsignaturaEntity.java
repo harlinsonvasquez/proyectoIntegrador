@@ -58,4 +58,8 @@ public class MatriculaAsignaturaEntity extends BaseEntity {
 		this.fechaEstado = OffsetDateTime.now();
 	}
 
+	public void actualizarNotaFinal(BigDecimal notaFinal) {
+		this.notaFinal = notaFinal;
+	}
+
 }

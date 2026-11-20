@@ -3,6 +3,7 @@ package com.proyectoItegrador.proyectoIntegrador.infrastructure.web;
 import com.proyectoItegrador.proyectoIntegrador.application.service.ConsultaAcademicaService;
 import com.proyectoItegrador.proyectoIntegrador.application.service.DatosPersonalesService;
 import com.proyectoItegrador.proyectoIntegrador.application.service.InscripcionEstudianteService;
+import com.proyectoItegrador.proyectoIntegrador.application.service.ConsultaNotasParcialesService;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.config.AuthenticatedUser;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.AsignaturaTrayectoriaResponse;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.PerfilEstudianteResponse;
@@ -12,6 +13,7 @@ import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.PeriodoAc
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.ActualizarDatosPersonalesRequest;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.DatosPersonalesResponse;
 import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.InscripcionEstudianteRequest;
+import com.proyectoItegrador.proyectoIntegrador.infrastructure.web.dto.NotaParcialDtos.NotaParcialEstudianteResponse;
 import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -39,6 +41,7 @@ public class ConsultaAcademicaController {
     private final ConsultaAcademicaService service;
     private final DatosPersonalesService datosPersonales;
     private final InscripcionEstudianteService inscripciones;
+    private final ConsultaNotasParcialesService notasParciales;
 
     @GetMapping("/me")
     @Operation(summary = "Consultar mi perfil", description = "Devuelve el perfil del estudiante autenticado.")
@@ -62,6 +65,13 @@ public class ConsultaAcademicaController {
     @GetMapping("/me/trayectoria/historial")
     public List<IntentoAcademicoResponse> miHistorial(@AuthenticationPrincipal AuthenticatedUser actor) {
         return service.miHistorial(actor);
+    }
+
+    @GetMapping("/me/notas-parciales")
+    @Operation(summary = "Consultar mis calificaciones parciales por asignatura")
+    public List<NotaParcialEstudianteResponse> misNotasParciales(
+            @AuthenticationPrincipal AuthenticatedUser actor) {
+        return notasParciales.misNotas(actor);
     }
 
     @GetMapping("/periodos")

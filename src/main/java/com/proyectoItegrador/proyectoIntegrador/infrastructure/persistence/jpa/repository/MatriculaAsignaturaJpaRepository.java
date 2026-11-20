@@ -10,6 +10,7 @@ import com.proyectoItegrador.proyectoIntegrador.infrastructure.persistence.jpa.e
 public interface MatriculaAsignaturaJpaRepository extends JpaRepository<MatriculaAsignaturaEntity, Long> {
     Optional<MatriculaAsignaturaEntity> findByIdAndEstudiante_Id(Long id, Long estudianteId);
     Optional<MatriculaAsignaturaEntity> findByIdAndOfertaAsignatura_Docente_Id(Long id, Long docenteId);
+    Optional<MatriculaAsignaturaEntity> findByIdAndOfertaAsignatura_Id(Long id, Long ofertaId);
     List<MatriculaAsignaturaEntity> findAllByOfertaAsignatura_Id(Long ofertaId);
     List<MatriculaAsignaturaEntity> findAllByEstudiante_Id(Long estudianteId);
     List<MatriculaAsignaturaEntity> findAllByEstudiante_Programa_Id(Long programaId);
